@@ -1,0 +1,122 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "libphonenumber for PHP",
+  "projectDescription": "PHP library for parsing, formatting, storing and validating international phone numbers",
+  "theme": "palm",
+  "primaryColor": "#2563eb",
+  "lightColor": "#60a5fa",
+  "darkColor": "#1e40af",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/phone-numbers",
+              "concepts/region-codes",
+              "concepts/number-formats",
+              "concepts/validation"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/parsing-numbers",
+              "guides/validating-numbers",
+              "guides/formatting-numbers",
+              "guides/geocoding",
+              "guides/carrier-mapping",
+              "guides/timezone-mapping",
+              "guides/finding-numbers",
+              "guides/error-handling"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/framework-integrations",
+              "advanced/metadata-generation",
+              "advanced/performance",
+              "advanced/lite-version"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/phone-number-util",
+              "api/phone-number",
+              "api/short-number-info"
+            ]
+          },
+          {
+            "group": "Formatting",
+            "pages": [
+              "api/as-you-type-formatter",
+              "api/phone-number-format"
+            ]
+          },
+          {
+            "group": "Mapping & Geocoding",
+            "pages": [
+              "api/phone-number-offline-geocoder",
+              "api/phone-number-to-carrier-mapper",
+              "api/phone-number-to-timezones-mapper"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/phone-number-matcher",
+              "api/phone-number-type",
+              "api/validation-result",
+              "api/number-parse-exception"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Parse phone numbers from any format",
+    "Validate international phone numbers",
+    "Format numbers for different contexts",
+    "Geocode phone numbers to locations",
+    "Map numbers to carriers and timezones",
+    "Handle emergency and short numbers",
+    "Real-time as-you-type formatting",
+    "Find phone numbers in text"
+  ],
+  "publicApiSurface": [
+    "PhoneNumberUtil::getInstance()",
+    "PhoneNumberUtil::parse()",
+    "PhoneNumberUtil::isValidNumber()",
+    "PhoneNumberUtil::format()",
+    "PhoneNumberUtil::getNumberType()",
+    "PhoneNumberUtil::getRegionCodeForNumber()",
+    "ShortNumberInfo::getInstance()",
+    "ShortNumberInfo::isEmergencyNumber()",
+    "PhoneNumberOfflineGeocoder::getInstance()",
+    "PhoneNumberOfflineGeocoder::getDescriptionForNumber()",
+    "PhoneNumberToCarrierMapper::getInstance()",
+    "PhoneNumberToCarrierMapper::getNameForNumber()",
+    "PhoneNumberToTimeZonesMapper::getInstance()",
+    "PhoneNumberToTimeZonesMapper::getTimeZonesForNumber()",
+    "PhoneNumberMatcher::__construct()",
+    "AsYouTypeFormatter::inputDigit()"
+  ]
+}
