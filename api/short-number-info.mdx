@@ -1,0 +1,612 @@
+---
+title: ShortNumberInfo
+description: Utility class for short phone numbers, emergency numbers, and short codes
+---
+
+## Overview
+
+The `ShortNumberInfo` class provides methods for working with short phone numbers, including:
+
+- Emergency numbers (999, 911, 112, etc.)
+- Short codes (SMS services, directory assistance, etc.)
+- Carrier-specific short numbers
+- Cost information for short numbers
+
+This class handles numbers that are typically shorter than standard phone numbers and are used for special services.
+
+<Note>
+  Most commercial short numbers are handled by `PhoneNumberUtil`, not `ShortNumberInfo`. This class focuses on service numbers like emergency services and SMS short codes.
+</Note>
+
+## Getting an Instance
+
+### getInstance()
+
+Returns the singleton instance of `ShortNumberInfo`.
+
+```php
+public static function getInstance(): ShortNumberInfo
+```
+
+**Returns:** `ShortNumberInfo` instance
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+```
+
+---
+
+## Emergency Numbers
+
+### isEmergencyNumber()
+
+Tests whether a number exactly matches an emergency service number.
+
+```php
+public function isEmergencyNumber(
+    string $number,
+    string $regionCode
+): bool
+```
+
+<ParamField path="number" type="string" required>
+  The phone number to test (as a string)
+</ParamField>
+
+<ParamField path="regionCode" type="string" required>
+  The region code where the number is being dialed (e.g., 'GB', 'US')
+</ParamField>
+
+**Returns:** `bool` - `true` if the number exactly matches an emergency number
+
+**Examples:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// UK emergency number
+var_dump($shortInfo->isEmergencyNumber('999', 'GB')); // bool(true)
+
+// 999 with extra digits is NOT an exact match
+var_dump($shortInfo->isEmergencyNumber('9999', 'GB')); // bool(false)
+
+// US emergency number
+var_dump($shortInfo->isEmergencyNumber('911', 'US')); // bool(true)
+
+// EU emergency number
+var_dump($shortInfo->isEmergencyNumber('112', 'GB')); // bool(true)
+```
+
+<Note>
+  This method requires an **exact** match. Use `connectsToEmergencyNumber()` if you want to allow prefix matching.
+</Note>
+
+### connectsToEmergencyNumber()
+
+Tests whether a number, as dialed, might connect to an emergency service.
+
+```php
+public function connectsToEmergencyNumber(
+    string $number,
+    string $regionCode
+): bool
+```
+
+<ParamField path="number" type="string" required>
+  The phone number to test (exactly as dialed)
+</ParamField>
+
+<ParamField path="regionCode" type="string" required>
+  The region where the number is being dialed
+</ParamField>
+
+**Returns:** `bool` - `true` if the number might connect to emergency services
+
+**Examples:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// Exact emergency number
+var_dump($shortInfo->connectsToEmergencyNumber('999', 'GB')); // bool(true)
+
+// Emergency number with additional digits may still connect
+// (in some regions, extra digits are ignored)
+var_dump($shortInfo->connectsToEmergencyNumber('999123', 'GB')); // bool(true)
+
+// Numbers starting with + don't connect to emergency services
+var_dump($shortInfo->connectsToEmergencyNumber('+1911', 'US')); // bool(false)
+```
+
+<Note>
+  This method is more lenient than `isEmergencyNumber()` - it returns `true` if dialing the number might connect to emergency services, even with additional digits appended.
+</Note>
+
+---
+
+## Short Number Validation
+
+### isValidShortNumber()
+
+Tests whether a short number is valid.
+
+```php
+public function isValidShortNumber(PhoneNumber $number): bool
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number as a PhoneNumber object
+</ParamField>
+
+**Returns:** `bool` - `true` if the short number matches a valid pattern
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// Create a PhoneNumber object for a short code
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(44);
+$shortNumber->setNationalNumber('118118');
+
+var_dump($shortInfo->isValidShortNumber($shortNumber)); // bool(true)
+```
+
+<Warning>
+  This validates pattern matching only. It doesn't verify if the number is actually in use.
+</Warning>
+
+### isValidShortNumberForRegion()
+
+Tests whether a short number is valid for a specific region.
+
+```php
+public function isValidShortNumberForRegion(
+    PhoneNumber $number,
+    ?string $regionDialingFrom
+): bool
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number to validate
+</ParamField>
+
+<ParamField path="regionDialingFrom" type="string|null" required>
+  The region code to validate against
+</ParamField>
+
+**Returns:** `bool` - `true` if valid for the region
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(44);
+$shortNumber->setNationalNumber('118118');
+
+var_dump($shortInfo->isValidShortNumberForRegion($shortNumber, 'GB')); // bool(true)
+var_dump($shortInfo->isValidShortNumberForRegion($shortNumber, 'US')); // bool(false)
+```
+
+### isPossibleShortNumber()
+
+Checks if a short number is possible (has valid length).
+
+```php
+public function isPossibleShortNumber(PhoneNumber $number): bool
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number to check
+</ParamField>
+
+**Returns:** `bool` - `true` if the length is possible
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(44);
+$shortNumber->setNationalNumber('118118');
+
+var_dump($shortInfo->isPossibleShortNumber($shortNumber)); // bool(true)
+```
+
+### isPossibleShortNumberForRegion()
+
+Checks if a short number is possible for a specific region.
+
+```php
+public function isPossibleShortNumberForRegion(
+    PhoneNumber $shortNumber,
+    string $regionDialingFrom
+): bool
+```
+
+<ParamField path="shortNumber" type="PhoneNumber" required>
+  The short number to check
+</ParamField>
+
+<ParamField path="regionDialingFrom" type="string" required>
+  The region code
+</ParamField>
+
+**Returns:** `bool` - `true` if possible for the region
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(44);
+$shortNumber->setNationalNumber('118118');
+
+var_dump($shortInfo->isPossibleShortNumberForRegion($shortNumber, 'GB')); // bool(true)
+```
+
+---
+
+## Carrier-Specific Numbers
+
+### isCarrierSpecific()
+
+Determines if a short number is carrier-specific.
+
+```php
+public function isCarrierSpecific(PhoneNumber $number): bool
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number to check
+</ParamField>
+
+**Returns:** `bool` - `true` if carrier-specific
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// 611 is carrier-specific in US
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(1);
+$shortNumber->setNationalNumber('611');
+
+var_dump($shortInfo->isCarrierSpecific($shortNumber)); // bool(true)
+```
+
+<Note>
+  Carrier-specific numbers may connect to different services or not work at all depending on the user's mobile carrier.
+</Note>
+
+### isCarrierSpecificForRegion()
+
+Determines if a short number is carrier-specific for a region.
+
+```php
+public function isCarrierSpecificForRegion(
+    PhoneNumber $number,
+    string $regionDialingFrom
+): bool
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number to check
+</ParamField>
+
+<ParamField path="regionDialingFrom" type="string" required>
+  The region code
+</ParamField>
+
+**Returns:** `bool` - `true` if carrier-specific in the region
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(1);
+$shortNumber->setNationalNumber('611');
+
+var_dump($shortInfo->isCarrierSpecificForRegion($shortNumber, 'US')); // bool(true)
+```
+
+### isSmsServiceForRegion()
+
+Determines if a short number is an SMS service.
+
+```php
+public function isSmsServiceForRegion(
+    PhoneNumber $number,
+    string $regionDialingFrom
+): bool
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number to check
+</ParamField>
+
+<ParamField path="regionDialingFrom" type="string" required>
+  The region code
+</ParamField>
+
+**Returns:** `bool` - `true` if it's an SMS service
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(44);
+$shortNumber->setNationalNumber('60000');
+
+if ($shortInfo->isSmsServiceForRegion($shortNumber, 'GB')) {
+    echo "This is an SMS service number";
+}
+```
+
+---
+
+## Cost Information
+
+### getExpectedCostForRegion()
+
+Returns the expected cost category for a short number in a region.
+
+```php
+public function getExpectedCostForRegion(
+    PhoneNumber $number,
+    string $regionDialingFrom
+): ShortNumberCost
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number
+</ParamField>
+
+<ParamField path="regionDialingFrom" type="string" required>
+  The region code
+</ParamField>
+
+**Returns:** `ShortNumberCost` enum with values:
+- `TOLL_FREE` - Free to call
+- `STANDARD_RATE` - Standard rate
+- `PREMIUM_RATE` - Premium rate (expensive)
+- `UNKNOWN_COST` - Cost unknown
+
+**Examples:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// Check cost of a short number
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(44);
+$shortNumber->setNationalNumber('116000');
+
+$cost = $shortInfo->getExpectedCostForRegion($shortNumber, 'GB');
+var_dump($cost); // ShortNumberCost::TOLL_FREE
+
+// Premium rate example
+$premiumNumber = new \libphonenumber\PhoneNumber();
+$premiumNumber->setCountryCode(1);
+$premiumNumber->setNationalNumber('24280');
+
+$cost = $shortInfo->getExpectedCostForRegion($premiumNumber, 'US');
+var_dump($cost); // ShortNumberCost::PREMIUM_RATE
+```
+
+<Note>
+  Emergency numbers are always considered toll-free.
+</Note>
+
+**Usage Pattern:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$shortNumber = $phoneUtil->parse('24280', 'US');
+
+if ($shortInfo->isValidShortNumberForRegion($shortNumber, 'US')) {
+    $cost = $shortInfo->getExpectedCostForRegion($shortNumber, 'US');
+    
+    switch ($cost) {
+        case \libphonenumber\ShortNumberCost::TOLL_FREE:
+            echo "This number is free to call";
+            break;
+        case \libphonenumber\ShortNumberCost::PREMIUM_RATE:
+            echo "Warning: This is a premium rate number";
+            break;
+        case \libphonenumber\ShortNumberCost::STANDARD_RATE:
+            echo "Standard charges apply";
+            break;
+        default:
+            echo "Cost information unavailable";
+    }
+}
+```
+
+### getExpectedCost()
+
+Returns the expected cost across all regions sharing a country code.
+
+```php
+public function getExpectedCost(PhoneNumber $number): ShortNumberCost
+```
+
+<ParamField path="number" type="PhoneNumber" required>
+  The short number
+</ParamField>
+
+**Returns:** `ShortNumberCost` - The highest expected cost across regions
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(1); // NANPA region (multiple countries)
+$shortNumber->setNationalNumber('611');
+
+// Returns highest cost across all NANPA regions
+$cost = $shortInfo->getExpectedCost($shortNumber);
+```
+
+<Note>
+  It's preferable to use `getExpectedCostForRegion()` when you know the dialing region, as this provides more accurate information.
+</Note>
+
+---
+
+## Example Numbers
+
+### getExampleShortNumber()
+
+Returns an example short number for a region.
+
+```php
+public function getExampleShortNumber(string $regionCode): string
+```
+
+<ParamField path="regionCode" type="string" required>
+  The region code (e.g., 'GB', 'US')
+</ParamField>
+
+**Returns:** `string` - Example short number, or empty string if none available
+
+**Examples:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+echo $shortInfo->getExampleShortNumber('GB'); // "150"
+echo $shortInfo->getExampleShortNumber('US'); // "1234"
+```
+
+### getExampleShortNumberForCost()
+
+Returns an example short number for a specific cost category.
+
+```php
+public function getExampleShortNumberForCost(
+    string $regionCode,
+    ShortNumberCost $cost
+): string
+```
+
+<ParamField path="regionCode" type="string" required>
+  The region code
+</ParamField>
+
+<ParamField path="cost" type="ShortNumberCost" required>
+  The cost category
+</ParamField>
+
+**Returns:** `string` - Example number, or empty string if none available
+
+**Examples:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// Get toll-free example for GB
+echo $shortInfo->getExampleShortNumberForCost(
+    'GB',
+    \libphonenumber\ShortNumberCost::TOLL_FREE
+); // "116000"
+
+// Get premium rate example for US
+echo $shortInfo->getExampleShortNumberForCost(
+    'US',
+    \libphonenumber\ShortNumberCost::PREMIUM_RATE
+); // "24280"
+
+// No premium rate numbers in GB
+echo $shortInfo->getExampleShortNumberForCost(
+    'GB',
+    \libphonenumber\ShortNumberCost::PREMIUM_RATE
+); // ""
+```
+
+---
+
+## Supported Regions
+
+### getSupportedRegions()
+
+Returns all regions with short number metadata.
+
+```php
+public function getSupportedRegions(): array
+```
+
+**Returns:** `array<string>` - Array of region codes
+
+**Example:**
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+$regions = $shortInfo->getSupportedRegions();
+// array("US", "GB", "DE", "FR", ...)
+```
+
+---
+
+## Complete Example
+
+Here's a comprehensive example showing various use cases:
+
+```php
+$shortInfo = \libphonenumber\ShortNumberInfo::getInstance();
+
+// Check emergency numbers
+if ($shortInfo->isEmergencyNumber('911', 'US')) {
+    echo "This is an emergency number!\n";
+}
+
+// Validate and check cost of a short number
+$shortNumber = new \libphonenumber\PhoneNumber();
+$shortNumber->setCountryCode(1);
+$shortNumber->setNationalNumber('24280');
+
+if ($shortInfo->isValidShortNumberForRegion($shortNumber, 'US')) {
+    $cost = $shortInfo->getExpectedCostForRegion($shortNumber, 'US');
+    
+    if ($cost === \libphonenumber\ShortNumberCost::PREMIUM_RATE) {
+        echo "Warning: Premium rate number!\n";
+    }
+}
+
+// Check if number is carrier-specific
+$carrierNumber = new \libphonenumber\PhoneNumber();
+$carrierNumber->setCountryCode(1);
+$carrierNumber->setNationalNumber('611');
+
+if ($shortInfo->isCarrierSpecificForRegion($carrierNumber, 'US')) {
+    echo "This number is carrier-specific\n";
+}
+
+// Get example numbers
+$exampleTollFree = $shortInfo->getExampleShortNumberForCost(
+    'GB',
+    \libphonenumber\ShortNumberCost::TOLL_FREE
+);
+echo "Example toll-free short number in GB: $exampleTollFree\n";
+```
+
+## See Also
+
+- [PhoneNumberUtil](/api/phone-number-util) - For standard phone numbers
+- [PhoneNumber](/api/phone-number) - The phone number object structure

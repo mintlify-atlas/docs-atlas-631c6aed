@@ -1,0 +1,512 @@
+---
+title: "Number Formats"
+description: "Understanding phone number formatting options and when to use each format"
+---
+
+## Format Types
+
+The `PhoneNumberFormat` enum defines four standard ways to format phone numbers. Each format serves a specific purpose and use case.
+
+```php
+enum PhoneNumberFormat: int
+{
+    case E164 = 0;
+    case INTERNATIONAL = 1;
+    case NATIONAL = 2;
+    case RFC3966 = 3;
+}
+```
+
+## E164 Format
+
+The **E.164** format is the international standard for phone number formatting. It's compact, machine-readable, and ideal for storage.
+
+### Characteristics
+
+- Starts with a `+` symbol
+- Contains only digits (no spaces, dashes, or parentheses)
+- Maximum length of 15 digits (excluding the `+`)
+- Includes country code
+- No formatting applied
+
+### Example
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('0117 496 0123', 'GB');
+
+echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::E164);
+// Output: +441174960123
+```
+
+<Tabs>
+  <Tab title="UK Number">
+    ```php
+    $ukNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+    echo $phoneUtil->format($ukNumber, \libphonenumber\PhoneNumberFormat::E164);
+    // Output: +441174960123
+    ```
+  </Tab>
+  <Tab title="US Number">
+    ```php
+    $usNumber = $phoneUtil->parse('(650) 253-0000', 'US');
+    echo $phoneUtil->format($usNumber, \libphonenumber\PhoneNumberFormat::E164);
+    // Output: +16502530000
+    ```
+  </Tab>
+  <Tab title="French Number">
+    ```php
+    $frNumber = $phoneUtil->parse('01 42 68 53 00', 'FR');
+    echo $phoneUtil->format($frNumber, \libphonenumber\PhoneNumberFormat::E164);
+    // Output: +33142685300
+    ```
+  </Tab>
+</Tabs>
+
+### When to Use E164
+
+<Accordion title="Database Storage">
+  E.164 is ideal for storing phone numbers in databases:
+  - Consistent format across all numbers
+  - No ambiguity about country or region
+  - Easy to index and search
+  - No formatting characters to strip
+  
+  ```php
+  // Store in database
+  $e164 = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::E164);
+  $db->insert('users', ['phone' => $e164]);
+  ```
+</Accordion>
+
+<Accordion title="API Communication">
+  Many APIs require or prefer E.164 format:
+  - SMS gateways (Twilio, MessageBird, etc.)
+  - Voice calling services
+  - Authentication services
+  - CRM systems
+  
+  ```php
+  // Send to API
+  $apiClient->sendSMS([
+      'to' => $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::E164),
+      'message' => 'Your code is 123456'
+  ]);
+  ```
+</Accordion>
+
+<Accordion title="Deduplication">
+  E.164 makes it easy to detect duplicate numbers:
+  ```php
+  $num1 = $phoneUtil->parse('(650) 253-0000', 'US');
+  $num2 = $phoneUtil->parse('650-253-0000', 'US');
+  
+  $e164_1 = $phoneUtil->format($num1, \libphonenumber\PhoneNumberFormat::E164);
+  $e164_2 = $phoneUtil->format($num2, \libphonenumber\PhoneNumberFormat::E164);
+  
+  if ($e164_1 === $e164_2) {
+      echo "Same number!"; // This will match
+  }
+  ```
+</Accordion>
+
+## INTERNATIONAL Format
+
+The **INTERNATIONAL** format is human-readable and follows ITU-T Recommendation E.123 for international display.
+
+### Characteristics
+
+- Starts with a `+` symbol
+- Includes country code
+- Contains spaces for readability
+- Consistent across all regions
+- Suitable for display
+
+### Example
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('0117 496 0123', 'GB');
+
+echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+// Output: +44 117 496 0123
+```
+
+<Tabs>
+  <Tab title="Various Countries">
+    ```php
+    // UK
+    $uk = $phoneUtil->parse('0117 496 0123', 'GB');
+    echo $phoneUtil->format($uk, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+    // Output: +44 117 496 0123
+    
+    // US
+    $us = $phoneUtil->parse('(650) 253-0000', 'US');
+    echo $phoneUtil->format($us, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+    // Output: +1 650-253-0000
+    
+    // Japan
+    $jp = $phoneUtil->parse('03-1234-5678', 'JP');
+    echo $phoneUtil->format($jp, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+    // Output: +81 3-1234-5678
+    ```
+  </Tab>
+  <Tab title="With Extensions">
+    ```php
+    $number = $phoneUtil->parse('+1-650-253-0000 ext. 123', 'US');
+    echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+    // Output: +1 650-253-0000 ext. 123
+    ```
+  </Tab>
+</Tabs>
+
+### When to Use INTERNATIONAL
+
+<Note>
+  Use INTERNATIONAL format when displaying numbers to users, especially in international contexts.
+</Note>
+
+- **User interfaces** - Easy to read and recognizable
+- **Contact lists** - Clear country identification
+- **Email signatures** - Professional appearance
+- **Printed materials** - Business cards, letterheads
+- **International correspondence** - Clear for any recipient
+
+```php
+// Display in UI
+echo "<p>Contact us at: " . 
+     $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::INTERNATIONAL) . 
+     "</p>";
+```
+
+## NATIONAL Format
+
+The **NATIONAL** format displays numbers as they would be dialed within their home country.
+
+### Characteristics
+
+- No country code
+- Includes national prefix (e.g., "0" in UK)
+- Region-specific formatting
+- Only valid within the same country
+- Most natural for local users
+
+### Example
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('+44 117 496 0123', null);
+
+echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::NATIONAL);
+// Output: 0117 496 0123
+```
+
+<Tabs>
+  <Tab title="UK Number">
+    ```php
+    $ukNumber = $phoneUtil->parse('+44 117 496 0123', null);
+    echo $phoneUtil->format($ukNumber, \libphonenumber\PhoneNumberFormat::NATIONAL);
+    // Output: 0117 496 0123
+    // Includes leading "0" (national prefix)
+    ```
+  </Tab>
+  <Tab title="US Number">
+    ```php
+    $usNumber = $phoneUtil->parse('+1 650 253 0000', null);
+    echo $phoneUtil->format($usNumber, \libphonenumber\PhoneNumberFormat::NATIONAL);
+    // Output: (650) 253-0000
+    // No leading "1" needed for display
+    ```
+  </Tab>
+  <Tab title="French Number">
+    ```php
+    $frNumber = $phoneUtil->parse('+33 1 42 68 53 00', null);
+    echo $phoneUtil->format($frNumber, \libphonenumber\PhoneNumberFormat::NATIONAL);
+    // Output: 01 42 68 53 00
+    // Includes leading "0"
+    ```
+  </Tab>
+</Tabs>
+
+### When to Use NATIONAL
+
+<Warning>
+  Only use NATIONAL format when you're certain users are in the same country as the phone number. For international applications, prefer INTERNATIONAL format.
+</Warning>
+
+- **Domestic applications** - Apps serving one country only
+- **Local business listings** - When all users are local
+- **Print ads** - For local newspapers/magazines
+- **Caller ID display** - When showing local calls
+
+```php
+// Show national format for same-country users
+$userCountry = 'GB';
+$numberCountry = $phoneUtil->getRegionCodeForNumber($number);
+
+if ($userCountry === $numberCountry) {
+    echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::NATIONAL);
+} else {
+    echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+}
+```
+
+## RFC3966 Format
+
+The **RFC3966** format is designed for tel: URI scheme, used in clickable phone links.
+
+### Characteristics
+
+- Starts with `tel:` prefix
+- Uses hyphens instead of spaces
+- Based on INTERNATIONAL format
+- Extensions use `;ext=` format
+- URI-compliant
+
+### Example
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('0117 496 0123', 'GB');
+
+echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::RFC3966);
+// Output: tel:+44-117-496-0123
+```
+
+<Tabs>
+  <Tab title="Basic Number">
+    ```php
+    $number = $phoneUtil->parse('+44 117 496 0123', null);
+    echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::RFC3966);
+    // Output: tel:+44-117-496-0123
+    ```
+  </Tab>
+  <Tab title="With Extension">
+    ```php
+    $number = $phoneUtil->parse('+1-650-253-0000 ext. 456', 'US');
+    echo $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::RFC3966);
+    // Output: tel:+1-650-253-0000;ext=456
+    ```
+  </Tab>
+</Tabs>
+
+### When to Use RFC3966
+
+<Accordion title="HTML Links">
+  Create clickable phone numbers in web pages:
+  ```php
+  $telUri = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::RFC3966);
+  echo '<a href="' . htmlspecialchars($telUri) . '">Call us</a>';
+  // Output: <a href="tel:+44-117-496-0123">Call us</a>
+  ```
+  
+  When users click this link on mobile devices, it automatically initiates a call.
+</Accordion>
+
+<Accordion title="Mobile App Deep Links">
+  Pass phone numbers to native dialer apps:
+  ```php
+  $telUri = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::RFC3966);
+  // Use in mobile deep link: myapp://call?uri=tel:+44-117-496-0123
+  ```
+</Accordion>
+
+<Accordion title="QR Codes">
+  Encode phone numbers in QR codes for easy scanning:
+  ```php
+  $telUri = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::RFC3966);
+  // Generate QR code with: tel:+44-117-496-0123
+  ```
+</Accordion>
+
+## Out-of-Country Formatting
+
+Format numbers specifically for dialing from a different country using `formatOutOfCountryCallingNumber()`:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$ukNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+// Dialing from France (IDD prefix: 00)
+echo $phoneUtil->formatOutOfCountryCallingNumber($ukNumber, 'FR');
+// Output: 00 44 117 496 0123
+
+// Dialing from US (IDD prefix: 011)
+echo $phoneUtil->formatOutOfCountryCallingNumber($ukNumber, 'US');
+// Output: 011 44 117 496 0123
+
+// Dialing from within UK (uses national format)
+echo $phoneUtil->formatOutOfCountryCallingNumber($ukNumber, 'GB');
+// Output: 0117 496 0123
+```
+
+### How It Works
+
+The function automatically:
+1. Detects if the number is in the same country (uses NATIONAL format)
+2. Applies the correct IDD prefix for the calling country
+3. Formats according to local conventions
+
+<Note>
+  Different countries use different international dialing prefixes. The library handles this automatically.
+</Note>
+
+### Common IDD Prefixes
+
+| Region | IDD Prefix | Example |
+|--------|------------|----------|
+| Most of Europe | 00 | 00 44 117 496 0123 |
+| United States | 011 | 011 44 117 496 0123 |
+| Australia | 0011 | 0011 44 117 496 0123 |
+| Japan | 010 | 010 44 117 496 0123 |
+| Brazil | 00 (with carrier) | 00XX 44 117 496 0123 |
+
+## Carrier Code Formatting
+
+Some countries require carrier codes for certain calls:
+
+### Format with Specific Carrier
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$arNumber = $phoneUtil->parse('92234654321', 'AR');
+
+// Format with carrier code "14"
+echo $phoneUtil->formatNationalNumberWithCarrierCode($arNumber, '14');
+// Output: 02234 14 65-4321
+```
+
+### Format with Preferred Carrier
+
+```php
+// Create number with preferred carrier
+$arNumber = new \libphonenumber\PhoneNumber();
+$arNumber->setCountryCode(54);
+$arNumber->setNationalNumber('91234125678');
+$arNumber->setPreferredDomesticCarrierCode('19');
+
+// Use preferred carrier ("19"), or fallback to "15"
+echo $phoneUtil->formatNationalNumberWithPreferredCarrierCode($arNumber, '15');
+// Output: 01234 19 12-5678 (uses "19", not "15")
+```
+
+## Mobile Dialing Format
+
+Format numbers specifically for mobile device dialing:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$auNumber = $phoneUtil->parse('1300123456', 'AU');
+
+// Format for dialing from within Australia
+echo $phoneUtil->formatNumberForMobileDialing($auNumber, 'AU', true);
+// Output: 1300 123 456
+
+// Unformatted version
+echo $phoneUtil->formatNumberForMobileDialing($auNumber, 'AU', false);
+// Output: 1300123456
+
+// Cannot be dialed from US (returns empty string)
+echo $phoneUtil->formatNumberForMobileDialing($auNumber, 'US', true);
+// Output: ""
+```
+
+<Warning>
+  If `formatNumberForMobileDialing()` returns an empty string, the number cannot be dialed from that region (e.g., domestic-only numbers).
+</Warning>
+
+## Choosing the Right Format
+
+<Tabs>
+  <Tab title="Storage">
+    **Use E164**
+    
+    ```php
+    // ✅ Best for databases
+    $e164 = $phoneUtil->format(
+        $number, 
+        \libphonenumber\PhoneNumberFormat::E164
+    );
+    ```
+    
+    Benefits:
+    - No ambiguity
+    - Easy to index
+    - Consistent across all numbers
+  </Tab>
+  <Tab title="Display">
+    **Use INTERNATIONAL or NATIONAL**
+    
+    ```php
+    // ✅ International apps
+    $display = $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+    );
+    
+    // ✅ Same-country apps
+    $display = $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::NATIONAL
+    );
+    ```
+    
+    Benefits:
+    - Human-readable
+    - Familiar to users
+    - Proper spacing
+  </Tab>
+  <Tab title="Links">
+    **Use RFC3966**
+    
+    ```php
+    // ✅ Clickable links
+    $href = $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::RFC3966
+    );
+    echo '<a href="' . $href . '">Call</a>';
+    ```
+    
+    Benefits:
+    - URI-compliant
+    - Works with tel: protocol
+    - Mobile-friendly
+  </Tab>
+  <Tab title="APIs">
+    **Use E164**
+    
+    ```php
+    // ✅ SMS/Voice APIs
+    $apiNumber = $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::E164
+    );
+    ```
+    
+    Benefits:
+    - Standard format
+    - No parsing ambiguity
+    - Widely accepted
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Note>
+  Always store phone numbers in E.164 format in your database, then format them for display based on context.
+</Note>
+
+```php
+// ✅ Good: Store E164, display formatted
+$e164 = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::E164);
+$db->save($e164);
+
+// Later, for display:
+$number = $phoneUtil->parse($e164, null);
+$display = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+
+// ❌ Bad: Store formatted display version
+$national = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::NATIONAL);
+$db->save($national); // Loses country information!
+```

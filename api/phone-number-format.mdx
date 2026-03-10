@@ -1,0 +1,297 @@
+---
+title: 'PhoneNumberFormat'
+description: 'Format constants for phone number output'
+---
+
+## Overview
+
+The `PhoneNumberFormat` enum defines the different formats in which phone numbers can be displayed. These constants are used with the [`PhoneNumberUtil::format()`](/api/phone-number-util#format) method to control the output format.
+
+```php
+enum PhoneNumberFormat: int
+{
+    case E164 = 0;
+    case INTERNATIONAL = 1;
+    case NATIONAL = 2;
+    case RFC3966 = 3;
+}
+```
+
+## Format Types
+
+### E164
+
+The E.164 format is the international standard for telephone number formatting. It produces a compact, machine-readable format with no spaces or formatting characters.
+
+**Format:** `+[country code][national number]`
+
+<Tabs>
+  <Tab title="Example">
+    ```php
+    use libphonenumber\PhoneNumberUtil;
+    use libphonenumber\PhoneNumberFormat;
+
+    $phoneNumberUtil = PhoneNumberUtil::getInstance();
+    $numberProto = $phoneNumberUtil->parse('+41 44 668 1800', 'CH');
+    
+    echo $phoneNumberUtil->format($numberProto, PhoneNumberFormat::E164);
+    // Output: +41446681800
+    ```
+  </Tab>
+  <Tab title="More Examples">
+    - US: `+12015551234`
+    - UK: `+442071234567`
+    - Japan: `+81312345678`
+    - Australia: `+61212345678`
+  </Tab>
+</Tabs>
+
+**When to use:**
+- Storing phone numbers in databases
+- API communication and data exchange
+- SMS/telephony systems that require standardized format
+- Any scenario requiring a canonical, unambiguous representation
+
+<Note>
+  E164 format is highly recommended for storage as it's neutral, compact, and internationally recognized.
+</Note>
+
+### INTERNATIONAL
+
+The INTERNATIONAL format is consistent with ITU-T Recommendation E.123 and provides a human-readable format with proper spacing for international use.
+
+**Format:** `+[country code] [formatted national number]`
+
+<Tabs>
+  <Tab title="Example">
+    ```php
+    use libphonenumber\PhoneNumberUtil;
+    use libphonenumber\PhoneNumberFormat;
+
+    $phoneNumberUtil = PhoneNumberUtil::getInstance();
+    $numberProto = $phoneNumberUtil->parse('044 668 1800', 'CH');
+    
+    echo $phoneNumberUtil->format($numberProto, PhoneNumberFormat::INTERNATIONAL);
+    // Output: +41 44 668 1800
+    ```
+  </Tab>
+  <Tab title="More Examples">
+    - US: `+1 201-555-1234`
+    - UK: `+44 20 7123 4567`
+    - Japan: `+81 3-1234-5678`
+    - Australia: `+61 2 1234 5678`
+  </Tab>
+</Tabs>
+
+**When to use:**
+- Displaying phone numbers to users in an international context
+- Contact information on websites with global audiences
+- Business cards and marketing materials for international use
+- Email signatures for international companies
+
+### NATIONAL
+
+The NATIONAL format displays the phone number as it would be dialed within its home country, including any necessary national prefix but without the country code.
+
+**Format:** `[national prefix][formatted national number]`
+
+<Tabs>
+  <Tab title="Example">
+    ```php
+    use libphonenumber\PhoneNumberUtil;
+    use libphonenumber\PhoneNumberFormat;
+
+    $phoneNumberUtil = PhoneNumberUtil::getInstance();
+    $numberProto = $phoneNumberUtil->parse('+41 44 668 1800', 'CH');
+    
+    echo $phoneNumberUtil->format($numberProto, PhoneNumberFormat::NATIONAL);
+    // Output: 044 668 1800
+    ```
+  </Tab>
+  <Tab title="More Examples">
+    - US: `(201) 555-1234`
+    - UK: `020 7123 4567`
+    - Japan: `03-1234-5678`
+    - Germany: `030 12345678`
+  </Tab>
+</Tabs>
+
+**When to use:**
+- Displaying phone numbers to users within the same country
+- Local business listings and directories
+- Forms and applications where the country context is known
+- Print materials for domestic audiences
+
+<Warning>
+  NATIONAL format should only be used when you're certain the number will be dialed from within the same country. For international contexts, always use INTERNATIONAL or E164 format.
+</Warning>
+
+### RFC3966
+
+The RFC3966 format follows the RFC 3966 standard for representing telephone numbers as URIs. This format is designed for use in hyperlinks and web-based telephony applications.
+
+**Format:** `tel:+[country code]-[formatted national number][;ext=[extension]]`
+
+<Tabs>
+  <Tab title="Example">
+    ```php
+    use libphonenumber\PhoneNumberUtil;
+    use libphonenumber\PhoneNumberFormat;
+
+    $phoneNumberUtil = PhoneNumberUtil::getInstance();
+    $numberProto = $phoneNumberUtil->parse('+41 44 668 1800', 'CH');
+    
+    echo $phoneNumberUtil->format($numberProto, PhoneNumberFormat::RFC3966);
+    // Output: tel:+41-44-668-1800
+    ```
+  </Tab>
+  <Tab title="With Extension">
+    ```php
+    $numberProto = $phoneNumberUtil->parse('+1 201-555-1234 ext. 123', 'US');
+    
+    echo $phoneNumberUtil->format($numberProto, PhoneNumberFormat::RFC3966);
+    // Output: tel:+1-201-555-1234;ext=123
+    ```
+  </Tab>
+</Tabs>
+
+**When to use:**
+- Creating clickable phone links in HTML (`<a href="tel:...">` tags)
+- Mobile-friendly web applications
+- QR codes containing phone numbers
+- Any URI-based telephony application
+
+<CodeGroup>
+```html Clickable Link
+<?php
+$formatted = $phoneNumberUtil->format($numberProto, PhoneNumberFormat::RFC3966);
+?>
+<a href="<?= $formatted ?>"><?= $phoneNumberUtil->format($numberProto, PhoneNumberFormat::INTERNATIONAL) ?></a>
+```
+
+```html Click-to-Call Button
+<button onclick="window.location.href='<?= $phoneNumberUtil->format($numberProto, PhoneNumberFormat::RFC3966) ?>'">
+  Call Now
+</button>
+```
+</CodeGroup>
+
+## Format Comparison
+
+Here's a side-by-side comparison of all formats for the same phone number:
+
+<CodeGroup>
+```php Swiss Number
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+$phoneNumberUtil = PhoneNumberUtil::getInstance();
+$number = $phoneNumberUtil->parse('+41 44 668 1800', 'CH');
+
+echo "E164: " . $phoneNumberUtil->format($number, PhoneNumberFormat::E164) . "\n";
+// +41446681800
+
+echo "INTERNATIONAL: " . $phoneNumberUtil->format($number, PhoneNumberFormat::INTERNATIONAL) . "\n";
+// +41 44 668 1800
+
+echo "NATIONAL: " . $phoneNumberUtil->format($number, PhoneNumberFormat::NATIONAL) . "\n";
+// 044 668 1800
+
+echo "RFC3966: " . $phoneNumberUtil->format($number, PhoneNumberFormat::RFC3966) . "\n";
+// tel:+41-44-668-1800
+```
+
+```php US Number
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+$phoneNumberUtil = PhoneNumberUtil::getInstance();
+$number = $phoneNumberUtil->parse('(201) 555-1234', 'US');
+
+echo "E164: " . $phoneNumberUtil->format($number, PhoneNumberFormat::E164) . "\n";
+// +12015551234
+
+echo "INTERNATIONAL: " . $phoneNumberUtil->format($number, PhoneNumberFormat::INTERNATIONAL) . "\n";
+// +1 201-555-1234
+
+echo "NATIONAL: " . $phoneNumberUtil->format($number, PhoneNumberFormat::NATIONAL) . "\n";
+// (201) 555-1234
+
+echo "RFC3966: " . $phoneNumberUtil->format($number, PhoneNumberFormat::RFC3966) . "\n";
+// tel:+1-201-555-1234
+```
+
+```php UK Number
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+$phoneNumberUtil = PhoneNumberUtil::getInstance();
+$number = $phoneNumberUtil->parse('020 7123 4567', 'GB');
+
+echo "E164: " . $phoneNumberUtil->format($number, PhoneNumberFormat::E164) . "\n";
+// +442071234567
+
+echo "INTERNATIONAL: " . $phoneNumberUtil->format($number, PhoneNumberFormat::INTERNATIONAL) . "\n";
+// +44 20 7123 4567
+
+echo "NATIONAL: " . $phoneNumberUtil->format($number, PhoneNumberFormat::NATIONAL) . "\n";
+// 020 7123 4567
+
+echo "RFC3966: " . $phoneNumberUtil->format($number, PhoneNumberFormat::RFC3966) . "\n";
+// tel:+44-20-7123-4567
+```
+</CodeGroup>
+
+## Quick Reference Table
+
+| Format | Use Case | Example (Swiss) | Clickable | Storage |
+|--------|----------|-----------------|-----------|----------|
+| **E164** | Storage, APIs | `+41446681800` | No | ✅ Recommended |
+| **INTERNATIONAL** | Display (global) | `+41 44 668 1800` | No | Not recommended |
+| **NATIONAL** | Display (local) | `044 668 1800` | No | ❌ Not recommended |
+| **RFC3966** | Web links, URIs | `tel:+41-44-668-1800` | ✅ Yes | Not recommended |
+
+## Best Practices
+
+<Note>
+  **For Storage:** Always store phone numbers in E164 format in your database. This ensures consistency, simplifies searching, and makes international handling straightforward.
+</Note>
+
+<Note>
+  **For Display:** Choose the format based on your audience:
+  - INTERNATIONAL for multi-country applications
+  - NATIONAL when the user's country matches the number's country
+  - RFC3966 for clickable phone links
+</Note>
+
+### Example: Smart Formatting Based on Context
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+function formatPhoneForUser($phoneNumber, $userCountry) {
+    $phoneNumberUtil = PhoneNumberUtil::getInstance();
+    $numberProto = $phoneNumberUtil->parse($phoneNumber, null);
+    
+    // Get the number's region
+    $numberRegion = $phoneNumberUtil->getRegionCodeForNumber($numberProto);
+    
+    // Use NATIONAL format if user is in the same country, otherwise INTERNATIONAL
+    if ($numberRegion === $userCountry) {
+        return $phoneNumberUtil->format($numberProto, PhoneNumberFormat::NATIONAL);
+    } else {
+        return $phoneNumberUtil->format($numberProto, PhoneNumberFormat::INTERNATIONAL);
+    }
+}
+
+// Examples
+echo formatPhoneForUser('+41446681800', 'CH'); // "044 668 1800" (national)
+echo formatPhoneForUser('+41446681800', 'US'); // "+41 44 668 1800" (international)
+```
+
+## Related
+
+- [PhoneNumberUtil::format()](/api/phone-number-util#format) - Format phone numbers using these constants
+- [AsYouTypeFormatter](/api/as-you-type-formatter) - Real-time formatting as users type
+- [PhoneNumberUtil](/api/phone-number-util) - Main utility class for phone number operations

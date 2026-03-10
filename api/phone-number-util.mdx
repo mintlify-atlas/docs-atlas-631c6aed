@@ -1,0 +1,905 @@
+---
+title: PhoneNumberUtil
+description: Core utility class for international phone number formatting, parsing, and validation
+---
+
+## Overview
+
+The `PhoneNumberUtil` class is the main entry point for all phone number operations. It provides functionality for:
+
+- Parsing phone numbers from strings
+- Validating phone numbers
+- Formatting phone numbers in various formats
+- Getting information about phone numbers (type, region, etc.)
+
+This class is implemented as a singleton for performance optimization.
+
+## Getting an Instance
+
+### getInstance()
+
+Returns the singleton instance of `PhoneNumberUtil`. The instance is loaded with phone number metadata for commonly used regions.
+
+```php
+public static function getInstance(
+    string $metadataLocation = 'libphonenumber\\data\\PhoneNumberMetadata_',
+    array $countryCallingCodeToRegionCodeMap = CountryCodeToRegionCodeMap::COUNTRY_CODE_TO_REGION_CODE_MAP
+): PhoneNumberUtil
+```
+
+<ParamField path="metadataLocation" type="string" default="libphonenumber\\data\\PhoneNumberMetadata_">
+  The location of the metadata files (optional)
+</ParamField>
+
+<ParamField path="countryCallingCodeToRegionCodeMap" type="array" default="CountryCodeToRegionCodeMap::COUNTRY_CODE_TO_REGION_CODE_MAP">
+  Mapping of country codes to region codes (optional)
+</ParamField>
+
+**Returns:** `PhoneNumberUtil` instance
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+```
+
+<Note>
+  Calling `getInstance()` multiple times returns the same instance (singleton pattern).
+</Note>
+
+---
+
+## Parsing Methods
+
+### parse()
+
+Parses a string and returns it as a `PhoneNumber` object. This is the primary method for converting string phone numbers into structured objects.
+
+```php
+public function parse(
+    string $numberToParse,
+    ?string $defaultRegion
+): PhoneNumber
+```
+
+<ParamField path="numberToParse" type="string" required>
+  The phone number to parse. Can contain formatting such as +, (, and -, as well as extensions.
+</ParamField>
+
+<ParamField path="defaultRegion" type="string|null" required>
+  The region code (e.g., 'GB', 'US') used when the number is not in international format. Can be `null` if the number starts with '+'.
+</ParamField>
+
+**Returns:** `PhoneNumber` object
+
+**Throws:** `NumberParseException` if the number cannot be parsed (too short/long, invalid region, etc.)
+
+**Examples:**
+
+<CodeGroup>
+
+```php International Format
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Parse international number (no region needed)
+$phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+```
+
+```php National Format
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Parse national number (region required)
+$phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+```
+
+```php With Extension
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Parse number with extension
+$phoneNumber = $phoneUtil->parse('0117 496 0123 ext. 123', 'GB');
+```
+
+```php From Different Region
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Parse with international prefix from France
+$phoneNumber = $phoneUtil->parse('00 44 117 496 0123', 'FR');
+```
+
+</CodeGroup>
+
+<Note>
+  The `parse()` method does **not** validate whether the number is actually valid - it only checks if it can be parsed. Use validation methods like `isValidNumber()` to verify validity.
+</Note>
+
+### parseAndKeepRawInput()
+
+Similar to `parse()`, but also populates the `rawInput` and `countryCodeSource` fields of the returned `PhoneNumber` object.
+
+```php
+public function parseAndKeepRawInput(
+    string $numberToParse,
+    ?string $defaultRegion,
+    ?PhoneNumber $phoneNumber = null
+): PhoneNumber
+```
+
+<ParamField path="numberToParse" type="string" required>
+  The phone number to parse. Can be in various formats including RFC3966.
+</ParamField>
+
+<ParamField path="defaultRegion" type="string|null" required>
+  The region code used if the number is not in international format.
+</ParamField>
+
+<ParamField path="phoneNumber" type="PhoneNumber|null" default="null">
+  Optional PhoneNumber object to populate (creates new one if null).
+</ParamField>
+
+**Returns:** `PhoneNumber` object with raw input preserved
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$phoneNumber = $phoneUtil->parseAndKeepRawInput('1-800-GOOG-411', 'US');
+
+// Raw input is preserved
+echo $phoneNumber->getRawInput(); // "1-800-GOOG-411"
+```
+
+---
+
+## Validation Methods
+
+<Tabs>
+  <Tab title="isValidNumber()">
+    ### isValidNumber()
+
+    Tests whether a phone number matches a valid pattern.
+
+    ```php
+    public function isValidNumber(PhoneNumber $number): bool
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number object to validate
+    </ParamField>
+
+    **Returns:** `bool` - `true` if valid, `false` otherwise
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+    if ($phoneUtil->isValidNumber($phoneNumber)) {
+        echo "Valid number!";
+    }
+    ```
+
+    <Warning>
+      This method validates number **patterns only**. It cannot verify if a number is actually in use by checking with telecommunication providers.
+    </Warning>
+  </Tab>
+
+  <Tab title="isValidNumberForRegion()">
+    ### isValidNumberForRegion()
+
+    Tests whether a phone number is valid for a specific region.
+
+    ```php
+    public function isValidNumberForRegion(
+        PhoneNumber $number,
+        string $regionCode
+    ): bool
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to validate
+    </ParamField>
+
+    <ParamField path="regionCode" type="string" required>
+      The region code to validate against (e.g., 'GB', 'US')
+    </ParamField>
+
+    **Returns:** `bool` - `true` if valid for the region
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+
+    var_dump($phoneUtil->isValidNumberForRegion($phoneNumber, 'GB')); // true
+    var_dump($phoneUtil->isValidNumberForRegion($phoneNumber, 'FR')); // false
+    ```
+  </Tab>
+
+  <Tab title="isPossibleNumber()">
+    ### isPossibleNumber()
+
+    Checks if a number is possible (has valid length). More lenient than `isValidNumber()`.
+
+    ```php
+    // With PhoneNumber object
+    public function isPossibleNumber(PhoneNumber $number): bool
+
+    // With string and region
+    public function isPossibleNumber(string $number, string $regionCode): bool
+    ```
+
+    <ParamField path="number" type="PhoneNumber|string" required>
+      The phone number to check (as object or string)
+    </ParamField>
+
+    <ParamField path="regionCode" type="string">
+      Required when using string format
+    </ParamField>
+
+    **Returns:** `bool` - `true` if the number is possible
+
+    **Examples:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+    // With PhoneNumber object
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+    var_dump($phoneUtil->isPossibleNumber($phoneNumber)); // true
+
+    // With string
+    var_dump($phoneUtil->isPossibleNumber('01174960123', 'GB')); // true
+    ```
+  </Tab>
+
+  <Tab title="isPossibleNumberWithReason()">
+    ### isPossibleNumberWithReason()
+
+    Returns detailed reason why a number is or isn't possible.
+
+    ```php
+    public function isPossibleNumberWithReason(
+        PhoneNumber $number
+    ): ValidationResult
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to check
+    </ParamField>
+
+    **Returns:** `ValidationResult` enum with values:
+    - `IS_POSSIBLE` - Number is valid
+    - `IS_POSSIBLE_LOCAL_ONLY` - Valid only for local dialing
+    - `INVALID_COUNTRY_CODE` - Invalid country code
+    - `TOO_SHORT` - Number too short
+    - `TOO_LONG` - Number too long
+    - `INVALID_LENGTH` - Invalid length
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+    $result = $phoneUtil->isPossibleNumberWithReason($phoneNumber);
+    // Returns ValidationResult::IS_POSSIBLE
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Formatting Methods
+
+<Tabs>
+  <Tab title="format()">
+    ### format()
+
+    Formats a phone number in the specified format using default rules.
+
+    ```php
+    public function format(
+        PhoneNumber $number,
+        PhoneNumberFormat $numberFormat
+    ): string
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to format
+    </ParamField>
+
+    <ParamField path="numberFormat" type="PhoneNumberFormat" required>
+      The format to use: `E164`, `INTERNATIONAL`, `NATIONAL`, or `RFC3966`
+    </ParamField>
+
+    **Returns:** `string` - The formatted phone number
+
+    **Examples:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+    // E164 format (no spaces, with +)
+    echo $phoneUtil->format($phoneNumber, \libphonenumber\PhoneNumberFormat::E164);
+    // "+441174960123"
+
+    // International format (human-readable)
+    echo $phoneUtil->format($phoneNumber, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+    // "+44 117 496 0123"
+
+    // National format (as dialed within country)
+    echo $phoneUtil->format($phoneNumber, \libphonenumber\PhoneNumberFormat::NATIONAL);
+    // "0117 496 0123"
+
+    // RFC3966 format (tel: URI)
+    echo $phoneUtil->format($phoneNumber, \libphonenumber\PhoneNumberFormat::RFC3966);
+    // "tel:+44-117-496-0123"
+    ```
+  </Tab>
+
+  <Tab title="formatOutOfCountryCallingNumber()">
+    ### formatOutOfCountryCallingNumber()
+
+    Formats a number as it would be dialed from another country.
+
+    ```php
+    public function formatOutOfCountryCallingNumber(
+        PhoneNumber $number,
+        string $regionCallingFrom
+    ): string
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to format
+    </ParamField>
+
+    <ParamField path="regionCallingFrom" type="string" required>
+      The region code of the country dialing from
+    </ParamField>
+
+    **Returns:** `string` - The formatted number with appropriate international prefix
+
+    **Examples:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+    // Dialing from France (uses 00 prefix)
+    echo $phoneUtil->formatOutOfCountryCallingNumber($phoneNumber, 'FR');
+    // "00 44 117 496 0123"
+
+    // Dialing from US (uses 011 prefix)
+    echo $phoneUtil->formatOutOfCountryCallingNumber($phoneNumber, 'US');
+    // "011 44 117 496 0123"
+
+    // Dialing from same country (GB)
+    echo $phoneUtil->formatOutOfCountryCallingNumber($phoneNumber, 'GB');
+    // "0117 496 0123"
+    ```
+  </Tab>
+
+  <Tab title="formatNumberForMobileDialing()">
+    ### formatNumberForMobileDialing()
+
+    Formats a number for mobile dialing from a specific region.
+
+    ```php
+    public function formatNumberForMobileDialing(
+        PhoneNumber $number,
+        string $regionCallingFrom,
+        bool $withFormatting
+    ): string
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to format
+    </ParamField>
+
+    <ParamField path="regionCallingFrom" type="string" required>
+      The region dialing from
+    </ParamField>
+
+    <ParamField path="withFormatting" type="bool" required>
+      Whether to include formatting (spaces, dashes)
+    </ParamField>
+
+    **Returns:** `string` - Formatted number for mobile dialing, or empty string if cannot be dialed
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $ausNumber = $phoneUtil->parse('1300123456', 'AU');
+
+    // With formatting
+    echo $phoneUtil->formatNumberForMobileDialing($ausNumber, 'AU', true);
+    // "1300 123 456"
+
+    // Without formatting
+    echo $phoneUtil->formatNumberForMobileDialing($ausNumber, 'AU', false);
+    // "1300123456"
+
+    // Cannot dial from US (returns empty)
+    echo $phoneUtil->formatNumberForMobileDialing($ausNumber, 'US', true);
+    // ""
+    ```
+  </Tab>
+
+  <Tab title="formatNationalNumberWithCarrierCode()">
+    ### formatNationalNumberWithCarrierCode()
+
+    Formats a number in national format with a specific carrier code.
+
+    ```php
+    public function formatNationalNumberWithCarrierCode(
+        PhoneNumber $number,
+        string $carrierCode
+    ): string
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to format
+    </ParamField>
+
+    <ParamField path="carrierCode" type="string" required>
+      The carrier code to use (empty string for none)
+    </ParamField>
+
+    **Returns:** `string` - Formatted number with carrier code
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $arNumber = $phoneUtil->parse('92234654321', 'AR');
+
+    echo $phoneUtil->formatNationalNumberWithCarrierCode($arNumber, '14');
+    // "02234 14 65-4321"
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Information Methods
+
+<Tabs>
+  <Tab title="getNumberType()">
+    ### getNumberType()
+
+    Returns the type of phone number (mobile, fixed-line, etc.).
+
+    ```php
+    public function getNumberType(PhoneNumber $number): PhoneNumberType
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to check
+    </ParamField>
+
+    **Returns:** `PhoneNumberType` enum with values:
+    - `FIXED_LINE` - Fixed-line number
+    - `MOBILE` - Mobile number
+    - `FIXED_LINE_OR_MOBILE` - Could be either
+    - `TOLL_FREE` - Toll-free number
+    - `PREMIUM_RATE` - Premium rate number
+    - `SHARED_COST` - Shared cost number
+    - `VOIP` - VoIP number
+    - `PERSONAL_NUMBER` - Personal number
+    - `PAGER` - Pager number
+    - `UAN` - Universal Access Number
+    - `VOICEMAIL` - Voicemail access number
+    - `UNKNOWN` - Unknown type
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+    $type = $phoneUtil->getNumberType($phoneNumber);
+    // Returns PhoneNumberType::FIXED_LINE
+    ```
+  </Tab>
+
+  <Tab title="getRegionCodeForNumber()">
+    ### getRegionCodeForNumber()
+
+    Returns the region code for a phone number.
+
+    ```php
+    public function getRegionCodeForNumber(
+        PhoneNumber $number
+    ): ?string
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number
+    </ParamField>
+
+    **Returns:** `string|null` - The region code (e.g., 'GB', 'US') or null if no match
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+
+    echo $phoneUtil->getRegionCodeForNumber($phoneNumber);
+    // "GB"
+    ```
+  </Tab>
+
+  <Tab title="getNationalSignificantNumber()">
+    ### getNationalSignificantNumber()
+
+    Gets the national significant number (without country code or formatting).
+
+    ```php
+    public function getNationalSignificantNumber(
+        PhoneNumber $number
+    ): string
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number
+    </ParamField>
+
+    **Returns:** `string` - The national significant number
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+
+    echo $phoneUtil->getNationalSignificantNumber($phoneNumber);
+    // "1174960123"
+    ```
+  </Tab>
+
+  <Tab title="isNumberGeographical()">
+    ### isNumberGeographical()
+
+    Tests whether a phone number has a geographical association.
+
+    ```php
+    // With PhoneNumber object
+    public function isNumberGeographical(
+        PhoneNumber $phoneNumber
+    ): bool
+
+    // With type and country code
+    public function isNumberGeographical(
+        PhoneNumberType $phoneNumberType,
+        int $countryCallingCode
+    ): bool
+    ```
+
+    <ParamField path="phoneNumber" type="PhoneNumber|PhoneNumberType" required>
+      Phone number or type to check
+    </ParamField>
+
+    <ParamField path="countryCallingCode" type="int">
+      Required when passing PhoneNumberType
+    </ParamField>
+
+    **Returns:** `bool` - `true` if the number is geographical
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+    var_dump($phoneUtil->isNumberGeographical($phoneNumber));
+    // bool(true) - fixed-line numbers are geographical
+    ```
+  </Tab>
+
+  <Tab title="canBeInternationallyDialled()">
+    ### canBeInternationallyDialled()
+
+    Returns whether a number can be dialed internationally.
+
+    ```php
+    public function canBeInternationallyDialled(
+        PhoneNumber $number
+    ): bool
+    ```
+
+    <ParamField path="number" type="PhoneNumber" required>
+      The phone number to check
+    </ParamField>
+
+    **Returns:** `bool` - `true` if can be dialed internationally
+
+    **Example:**
+
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+    // UK number (can be dialed internationally)
+    $ukNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+    var_dump($phoneUtil->canBeInternationallyDialled($ukNumber));
+    // bool(true)
+
+    // Australian 1300 number (cannot be dialed internationally)
+    $ausNumber = $phoneUtil->parse('1300123456', 'AU');
+    var_dump($phoneUtil->canBeInternationallyDialled($ausNumber));
+    // bool(false)
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Region and Country Code Methods
+
+### getCountryCodeForRegion()
+
+Returns the country calling code for a region.
+
+```php
+public function getCountryCodeForRegion(string $regionCode): int
+```
+
+<ParamField path="regionCode" type="string" required>
+  The region code (e.g., 'NZ', 'US')
+</ParamField>
+
+**Returns:** `int` - The country calling code
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+echo $phoneUtil->getCountryCodeForRegion('NZ'); // 64
+echo $phoneUtil->getCountryCodeForRegion('US'); // 1
+echo $phoneUtil->getCountryCodeForRegion('GB'); // 44
+```
+
+### getRegionCodeForCountryCode()
+
+Returns the region code for a country calling code.
+
+```php
+public function getRegionCodeForCountryCode(
+    int $countryCallingCode
+): string
+```
+
+<ParamField path="countryCallingCode" type="int" required>
+  The country calling code
+</ParamField>
+
+**Returns:** `string` - The region code, '001' for non-geographical, or 'ZZ' for unknown
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+echo $phoneUtil->getRegionCodeForCountryCode(44); // "GB"
+echo $phoneUtil->getRegionCodeForCountryCode(1);  // "US" (main region for NANPA)
+```
+
+### getRegionCodesForCountryCode()
+
+Returns all region codes that match a country calling code.
+
+```php
+public function getRegionCodesForCountryCode(
+    int $countryCallingCode
+): array
+```
+
+<ParamField path="countryCallingCode" type="int" required>
+  The country calling code
+</ParamField>
+
+**Returns:** `array<string>` - Array of region codes
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+var_dump($phoneUtil->getRegionCodesForCountryCode(44));
+// array(1) { [0]=> string(2) "GB" }
+
+var_dump($phoneUtil->getRegionCodesForCountryCode(1));
+// array(25) { [0]=> "US", [1]=> "AG", [2]=> "AI", ... } (NANPA countries)
+```
+
+### getSupportedRegions()
+
+Returns all region codes the library supports.
+
+```php
+public function getSupportedRegions(): array
+```
+
+**Returns:** `array<string>` - Array of two-letter region codes
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$regions = $phoneUtil->getSupportedRegions();
+// array("US", "GB", "DE", "FR", ...)
+```
+
+---
+
+## Example Number Methods
+
+### getExampleNumber()
+
+Returns an example phone number for a region.
+
+```php
+public function getExampleNumber(string $regionCode): ?PhoneNumber
+```
+
+<ParamField path="regionCode" type="string" required>
+  The region code
+</ParamField>
+
+**Returns:** `PhoneNumber|null` - Example number or null if none available
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$example = $phoneUtil->getExampleNumber('GB');
+// PhoneNumber: Country Code: 44 National Number: 1212345678
+```
+
+### getExampleNumberForType()
+
+Returns an example number for a region and type.
+
+```php
+// For specific region and type
+public function getExampleNumberForType(
+    string $regionCode,
+    PhoneNumberType $type
+): ?PhoneNumber
+
+// For any region with type
+public function getExampleNumberForType(
+    PhoneNumberType $type
+): ?PhoneNumber
+```
+
+<ParamField path="regionCode" type="string">
+  The region code (optional if just type provided)
+</ParamField>
+
+<ParamField path="type" type="PhoneNumberType" required>
+  The number type
+</ParamField>
+
+**Returns:** `PhoneNumber|null` - Example number or null
+
+**Examples:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Get mobile number for GB
+$mobile = $phoneUtil->getExampleNumberForType('GB', \libphonenumber\PhoneNumberType::MOBILE);
+// PhoneNumber: Country Code: 44 National Number: 7400123456
+
+// Get any mobile number
+$anyMobile = $phoneUtil->getExampleNumberForType(\libphonenumber\PhoneNumberType::MOBILE);
+// PhoneNumber: Country Code: 1 National Number: 2015555555
+```
+
+---
+
+## Utility Methods
+
+### findNumbers()
+
+Finds phone numbers in text.
+
+```php
+public function findNumbers(
+    string $text,
+    ?string $defaultRegion,
+    ?AbstractLeniency $leniency = null,
+    int $maxTries = PHP_INT_MAX
+): PhoneNumberMatcher
+```
+
+<ParamField path="text" type="string" required>
+  The text to search
+</ParamField>
+
+<ParamField path="defaultRegion" type="string|null" required>
+  Default region for numbers without country code
+</ParamField>
+
+<ParamField path="leniency" type="AbstractLeniency|null" default="Leniency::VALID()">
+  Leniency level for matching
+</ParamField>
+
+<ParamField path="maxTries" type="int" default="PHP_INT_MAX">
+  Maximum number of matches
+</ParamField>
+
+**Returns:** `PhoneNumberMatcher` - Iterator for matches
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$text = "Call me at +44 117 496 0123 or 0207 123 4567";
+
+foreach ($phoneUtil->findNumbers($text, 'GB') as $match) {
+    echo $match->rawString() . "\n";
+}
+// +44 117 496 0123
+// 0207 123 4567
+```
+
+### getAsYouTypeFormatter()
+
+Gets a formatter for as-you-type formatting.
+
+```php
+public function getAsYouTypeFormatter(string $regionCode): AsYouTypeFormatter
+```
+
+<ParamField path="regionCode" type="string" required>
+  The region code
+</ParamField>
+
+**Returns:** `AsYouTypeFormatter` instance
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$formatter = $phoneUtil->getAsYouTypeFormatter('US');
+
+echo $formatter->inputDigit('2'); // 2
+echo $formatter->inputDigit('0'); // 20
+echo $formatter->inputDigit('1'); // 201
+echo $formatter->inputDigit('5'); // (201) 5
+```
+
+### normalize()
+
+Normalizes a phone number string.
+
+```php
+public static function normalize(string $number): string
+```
+
+<ParamField path="number" type="string" required>
+  The phone number to normalize
+</ParamField>
+
+**Returns:** `string` - Normalized number (digits only)
+
+**Example:**
+
+```php
+echo \libphonenumber\PhoneNumberUtil::normalize("(201) 555-0123");
+// "2015550123"
+```
+
+---
+
+## See Also
+
+- [PhoneNumber](/api/phone-number) - The phone number object structure
+- [ShortNumberInfo](/api/short-number-info) - For short codes and emergency numbers

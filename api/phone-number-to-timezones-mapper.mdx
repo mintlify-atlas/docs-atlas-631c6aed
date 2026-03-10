@@ -1,0 +1,271 @@
+---
+title: 'PhoneNumberToTimeZonesMapper'
+description: 'Map phone numbers to their corresponding timezones'
+---
+
+## Overview
+
+The `PhoneNumberToTimeZonesMapper` class identifies the timezone(s) where a phone number is located. It returns an array of timezone strings in IANA timezone format (e.g., "America/New_York", "Europe/Zurich").
+
+<Note>
+  Geographic numbers typically return specific timezones, while non-geographic numbers (like toll-free) may return multiple timezones covering the entire country.
+</Note>
+
+## Getting an Instance
+
+The timezone mapper uses a singleton pattern. Get an instance using the static `getInstance()` method:
+
+```php
+$timezoneMapper = \libphonenumber\PhoneNumberToTimeZonesMapper::getInstance();
+```
+
+<ParamField query="className" type="string" default="libphonenumber\\timezone\\data\\Map::class">
+  Optional class name for custom timezone mapping data. Only needed for advanced use cases with custom data sources.
+</ParamField>
+
+## Methods
+
+### getTimeZonesForNumber()
+
+Returns an array of timezone strings for the given phone number. For geographical numbers, this typically returns one or a few specific timezones. For non-geographical numbers (toll-free, shared-cost, etc.), it may return all timezones in the country.
+
+```php
+public function getTimeZonesForNumber(PhoneNumber $number): array
+```
+
+<ParamField query="number" type="PhoneNumber" required>
+  The phone number to get timezone information for.
+</ParamField>
+
+<ResponseField name="return" type="string[]">
+  An array of timezone strings in IANA format. Returns `["Etc/Unknown"]` if:
+  - The number is invalid
+  - No timezone data is available
+  - The number type is unknown
+</ResponseField>
+
+#### Geographic Number Example
+
+Geographic (fixed-line) numbers typically return specific timezones:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberToTimeZonesMapper;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+// US geographic number (Mountain View, CA)
+$usNumber = $phoneUtil->parse("+1 650 253 0000", "US");
+
+$timezones = $timezoneMapper->getTimeZonesForNumber($usNumber);
+var_dump($timezones);
+// Output: array(1) { [0]=> string(19) "America/Los_Angeles" }
+```
+
+#### Non-Geographic Number Example
+
+Non-geographic numbers like toll-free can be from anywhere in the country, so they return all possible timezones:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+// US toll-free number
+$tollFreeNumber = $phoneUtil->parse("+1 800 253 0000", "US");
+
+$timezones = $timezoneMapper->getTimeZonesForNumber($tollFreeNumber);
+var_dump($timezones);
+// Output: array(35) containing all US and associated territories timezones:
+// [0]=> "America/Anguilla"
+// [1]=> "America/Antigua"
+// [2]=> "America/Barbados"
+// [3]=> "America/Cayman"
+// [4]=> "America/Chicago"
+// [5]=> "America/Denver"
+// ... (30 more timezones)
+```
+
+#### Swiss Number Example
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+// Swiss mobile number
+$swissNumber = $phoneUtil->parse("798765432", "CH");
+
+$timezones = $timezoneMapper->getTimeZonesForNumber($swissNumber);
+var_dump($timezones);
+// Output: array(1) { [0]=> string(13) "Europe/Zurich" }
+```
+
+### getTimeZonesForGeographicalNumber()
+
+Returns timezones for a geographical phone number. Assumes the number has already been validated as geographical.
+
+```php
+public function getTimeZonesForGeographicalNumber(PhoneNumber $number): array
+```
+
+<ParamField query="number" type="PhoneNumber" required>
+  A valid geographical phone number.
+</ParamField>
+
+<ResponseField name="return" type="string[]">
+  An array of timezone strings, or `["Etc/Unknown"]` if no mapping is found.
+</ResponseField>
+
+<Note>
+  This method assumes the number is geographical (fixed-line or mobile). For most use cases, prefer `getTimeZonesForNumber()` which automatically determines the number type.
+</Note>
+
+### getUnknownTimeZone()
+
+Returns the constant string used to represent unknown timezones.
+
+```php
+public static function getUnknownTimeZone(): string
+```
+
+<ResponseField name="return" type="string">
+  The string "Etc/Unknown"
+</ResponseField>
+
+#### Example
+
+```php
+$unknownTz = \libphonenumber\PhoneNumberToTimeZonesMapper::getUnknownTimeZone();
+echo $unknownTz;
+// Output: "Etc/Unknown"
+```
+
+## Complete Example
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberToTimeZonesMapper;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+try {
+    // Geographic number - specific timezone
+    $usNumber = $phoneUtil->parse("+1 650 253 0000", "US");
+    $timezones = $timezoneMapper->getTimeZonesForNumber($usNumber);
+    
+    echo "US Geographic Number Timezones:\n";
+    foreach ($timezones as $timezone) {
+        echo "  - {$timezone}\n";
+    }
+    // Output: America/Los_Angeles
+    
+    // Toll-free number - multiple timezones
+    $tollFree = $phoneUtil->parse("+1 800 253 0000", "US");
+    $tollFreeTimezones = $timezoneMapper->getTimeZonesForNumber($tollFree);
+    
+    echo "\nUS Toll-Free Number Timezones: " . count($tollFreeTimezones) . " zones\n";
+    // Output: 35 zones (all US and territories)
+    
+    // Swiss number
+    $swissNumber = $phoneUtil->parse("798765432", "CH");
+    $swissTimezones = $timezoneMapper->getTimeZonesForNumber($swissNumber);
+    
+    echo "\nSwiss Number Timezones:\n";
+    foreach ($swissTimezones as $timezone) {
+        echo "  - {$timezone}\n";
+    }
+    // Output: Europe/Zurich
+    
+    // Invalid number
+    $invalidNumber = $phoneUtil->parse("123", "XX");
+    $unknownTimezones = $timezoneMapper->getTimeZonesForNumber($invalidNumber);
+    
+    echo "\nInvalid Number Timezones:\n";
+    var_dump($unknownTimezones);
+    // Output: array(1) { [0]=> string(11) "Etc/Unknown" }
+    
+} catch (\libphonenumber\NumberParseException $e) {
+    echo "Error: " . $e->getMessage();
+}
+```
+
+## Understanding Results
+
+### Single Timezone Result
+
+Most geographic phone numbers return a single timezone:
+
+```php
+// Returns: ["Europe/Zurich"]
+$timezones = $timezoneMapper->getTimeZonesForNumber($swissNumber);
+```
+
+### Multiple Timezone Results
+
+Some scenarios return multiple timezones:
+
+1. **Non-geographic numbers** (toll-free, shared cost, etc.)
+   - Can be from anywhere in the country
+   - Returns all timezones for that country/region
+
+2. **Numbers spanning multiple zones**
+   - Some area codes cover multiple timezones
+   - Returns all applicable zones
+
+3. **Country-level results**
+   - When specific geographic data isn't available
+   - Returns all timezones for the country
+
+```php
+// US toll-free - could be answered from anywhere
+$timezones = $timezoneMapper->getTimeZonesForNumber($tollFreeNumber);
+echo count($timezones); // 35 timezones
+```
+
+## Timezone Format
+
+All timezone strings use the **IANA timezone database** format:
+
+- **North America:** `America/New_York`, `America/Chicago`, `America/Los_Angeles`
+- **Europe:** `Europe/London`, `Europe/Paris`, `Europe/Zurich`
+- **Asia:** `Asia/Tokyo`, `Asia/Hong_Kong`, `Asia/Dubai`
+- **Pacific:** `Pacific/Auckland`, `Pacific/Honolulu`
+- **Unknown:** `Etc/Unknown`
+
+These timezone strings are compatible with PHP's `DateTimeZone` class:
+
+```php
+$timezones = $timezoneMapper->getTimeZonesForNumber($number);
+
+foreach ($timezones as $tzString) {
+    $timezone = new DateTimeZone($tzString);
+    $datetime = new DateTime('now', $timezone);
+    echo "Time in {$tzString}: " . $datetime->format('Y-m-d H:i:s T') . "\n";
+}
+```
+
+## Use Cases
+
+<Note>
+  **Common applications:**
+  
+  - **Scheduling calls** - Determine appropriate calling times
+  - **Time-based features** - Show local time for phone number owners
+  - **Business hours** - Calculate operating hours for different regions
+  - **Analytics** - Timezone-based reporting and analysis
+  - **Compliance** - Respect calling time restrictions by timezone
+</Note>
+
+## Data Availability
+
+Timezone mapping works best for:
+- **Fixed-line numbers** - Usually tied to specific geographic areas
+- **Mobile numbers** - When registered to specific regions
+- **Countries with good data coverage** - Major markets have detailed mapping
+
+Limitations:
+- Non-geographic numbers return country-level timezones (many results)
+- Some regions may have incomplete data
+- Mobile numbers may not reflect current user location
+- Returns `"Etc/Unknown"` when no data is available

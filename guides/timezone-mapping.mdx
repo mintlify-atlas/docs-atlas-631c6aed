@@ -1,0 +1,554 @@
+---
+title: Timezone Mapping
+description: Determine timezone information from phone numbers
+---
+
+# Timezone Mapping
+
+The `PhoneNumberToTimeZonesMapper` provides timezone information for phone numbers. This is useful for determining appropriate times to call users or schedule communications.
+
+<Note>
+A single phone number may map to multiple timezones, especially for toll-free and mobile numbers.
+</Note>
+
+## Getting Started
+
+<Steps>
+  <Step title="Get Mapper Instance">
+    ```php
+    use libphonenumber\PhoneNumberToTimeZonesMapper;
+    
+    $timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+    ```
+  </Step>
+  
+  <Step title="Parse a Phone Number">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $number = $phoneUtil->parse('798765432', 'CH');
+    ```
+  </Step>
+  
+  <Step title="Get Timezones">
+    ```php
+    // Returns array of timezone identifiers
+    $timezones = $timezoneMapper->getTimeZonesForNumber($number);
+    var_dump($timezones); // array(1) { [0]=> string(13) "Europe/Zurich" }
+    ```
+  </Step>
+</Steps>
+
+## Basic Usage
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberToTimeZonesMapper;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+// Parse a Swiss phone number
+$swissNumber = $phoneUtil->parse('798765432', 'CH');
+
+// Get timezone(s)
+$timezones = $timezoneMapper->getTimeZonesForNumber($swissNumber);
+print_r($timezones);
+// Output: Array ( [0] => Europe/Zurich )
+```
+
+## Understanding Timezone Results
+
+The method returns an array of IANA timezone identifiers:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+// Geographic number - usually one timezone
+$geoNumber = $phoneUtil->parse('044 668 18 00', 'CH');
+$timezones = $timezoneMapper->getTimeZonesForNumber($geoNumber);
+var_dump($timezones);
+// array(1) { [0]=> string(13) "Europe/Zurich" }
+
+// Toll-free number - may span multiple timezones
+$tollFree = $phoneUtil->parse('1-800-FLOWERS', 'US');
+$timezones = $timezoneMapper->getTimeZonesForNumber($tollFree);
+var_dump(count($timezones));
+// Could be 35+ timezones (all US zones)
+```
+
+<Tip>
+**Timezone identifier format**: Results use IANA timezone database names (e.g., `America/New_York`, `Europe/London`). These are compatible with PHP's `DateTimeZone` class.
+</Tip>
+
+## Working with PHP DateTimeZone
+
+Timezone identifiers can be used directly with PHP's timezone functions:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+$number = $phoneUtil->parse('+41 44 668 18 00', null);
+$timezones = $timezoneMapper->getTimeZonesForNumber($number);
+
+if (!empty($timezones)) {
+    // Get the first (or only) timezone
+    $timezone = new DateTimeZone($timezones[0]);
+    
+    // Get current time in that timezone
+    $datetime = new DateTime('now', $timezone);
+    
+    echo "Current time in {$timezones[0]}: ";
+    echo $datetime->format('Y-m-d H:i:s T');
+    // Output: Current time in Europe/Zurich: 2024-03-10 15:30:00 CET
+}
+```
+
+## Geographic vs Non-Geographic Numbers
+
+<Tabs>
+  <Tab title="Geographic Numbers">
+    Geographic numbers (landlines) typically map to a single timezone:
+    
+    ```php
+    $phoneUtil = PhoneNumberUtil::getInstance();
+    $timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+    
+    $landline = $phoneUtil->parse('0117 496 0123', 'GB');
+    $timezones = $timezoneMapper->getTimeZonesForNumber($landline);
+    
+    print_r($timezones);
+    // Array ( [0] => Europe/London )
+    ```
+  </Tab>
+  
+  <Tab title="Mobile Numbers">
+    Mobile numbers may map to multiple timezones as they can be used anywhere:
+    
+    ```php
+    $phoneUtil = PhoneNumberUtil::getInstance();
+    $timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+    
+    $mobile = $phoneUtil->parse('07400 123456', 'GB');
+    $timezones = $timezoneMapper->getTimeZonesForNumber($mobile);
+    
+    // May return multiple UK timezones or just Europe/London
+    print_r($timezones);
+    ```
+  </Tab>
+  
+  <Tab title="Toll-Free Numbers">
+    Toll-free numbers often span entire countries with multiple timezones:
+    
+    ```php
+    $phoneUtil = PhoneNumberUtil::getInstance();
+    $timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+    
+    $tollFree = $phoneUtil->parse('1-800-123-4567', 'US');
+    $timezones = $timezoneMapper->getTimeZonesForNumber($tollFree);
+    
+    echo "Timezones: " . count($timezones);
+    // Output: Timezones: 35 (or more - all US timezones)
+    ```
+  </Tab>
+</Tabs>
+
+## Handling Multiple Timezones
+
+When a number maps to multiple timezones:
+
+```php
+function getBestTimeToCall(
+    array $timezones,
+    int $preferredHour = 10
+): ?DateTime {
+    if (empty($timezones)) {
+        return null;
+    }
+    
+    // Use the first timezone (usually the most common/representative)
+    $timezone = new DateTimeZone($timezones[0]);
+    
+    // Create datetime for preferred hour in that timezone
+    $datetime = new DateTime('now', $timezone);
+    $datetime->setTime($preferredHour, 0, 0);
+    
+    // If preferred time has passed today, schedule for tomorrow
+    $now = new DateTime('now', $timezone);
+    if ($datetime < $now) {
+        $datetime->modify('+1 day');
+    }
+    
+    return $datetime;
+}
+
+// Usage
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+$number = $phoneUtil->parse('+41 44 668 18 00', null);
+$timezones = $timezoneMapper->getTimeZonesForNumber($number);
+
+$callTime = getBestTimeToCall($timezones, 10); // 10 AM
+if ($callTime) {
+    echo "Best time to call: " . $callTime->format('Y-m-d H:i:s T');
+}
+```
+
+## Geographical Numbers Only
+
+For geographic numbers specifically:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+$number = $phoneUtil->parse('0117 496 0123', 'GB');
+
+// Check if number is geographical
+if ($phoneUtil->isNumberGeographical($number)) {
+    // More precise timezone data for landlines
+    $timezones = $timezoneMapper->getTimeZonesForGeographicalNumber($number);
+    echo "Geographic timezone: " . $timezones[0];
+}
+```
+
+## Practical Examples
+
+<Tabs>
+  <Tab title="Call Scheduling">
+    ```php
+    class CallScheduler
+    {
+        private PhoneNumberUtil $phoneUtil;
+        private PhoneNumberToTimeZonesMapper $timezoneMapper;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+            $this->timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+        }
+        
+        public function canCallNow(
+            string $phoneNumber,
+            int $startHour = 9,
+            int $endHour = 17
+        ): bool {
+            try {
+                $number = $this->phoneUtil->parse($phoneNumber, null);
+                $timezones = $this->timezoneMapper->getTimeZonesForNumber($number);
+                
+                if (empty($timezones)) {
+                    return false; // Unknown timezone, don't call
+                }
+                
+                // Check if current time is within business hours
+                // in any of the possible timezones
+                foreach ($timezones as $tzName) {
+                    $timezone = new \DateTimeZone($tzName);
+                    $now = new \DateTime('now', $timezone);
+                    $currentHour = (int)$now->format('G');
+                    
+                    if ($currentHour >= $startHour && $currentHour < $endHour) {
+                        return true;
+                    }
+                }
+                
+                return false;
+                
+            } catch (\Exception $e) {
+                return false;
+            }
+        }
+        
+        public function getNextCallWindow(
+            string $phoneNumber,
+            int $startHour = 9,
+            int $endHour = 17
+        ): ?DateTime {
+            try {
+                $number = $this->phoneUtil->parse($phoneNumber, null);
+                $timezones = $this->timezoneMapper->getTimeZonesForNumber($number);
+                
+                if (empty($timezones)) {
+                    return null;
+                }
+                
+                // Use first timezone
+                $timezone = new \DateTimeZone($timezones[0]);
+                $now = new \DateTime('now', $timezone);
+                $next = clone $now;
+                $next->setTime($startHour, 0, 0);
+                
+                // If start time has passed, schedule for tomorrow
+                if ($next <= $now) {
+                    $next->modify('+1 day');
+                }
+                
+                return $next;
+                
+            } catch (\Exception $e) {
+                return null;
+            }
+        }
+    }
+    
+    // Usage
+    $scheduler = new CallScheduler();
+    
+    if ($scheduler->canCallNow('+41 44 668 18 00', 9, 18)) {
+        echo "Can call now!";
+    } else {
+        $nextWindow = $scheduler->getNextCallWindow('+41 44 668 18 00', 9, 18);
+        if ($nextWindow) {
+            echo "Next call window: " . $nextWindow->format('Y-m-d H:i:s T');
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="User Display">
+    ```php
+    function formatPhoneWithLocalTime(
+        string $phoneNumber,
+        string $displayTimezone = 'UTC'
+    ): array {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $timezoneMapper = \libphonenumber\PhoneNumberToTimeZonesMapper::getInstance();
+        
+        try {
+            $number = $phoneUtil->parse($phoneNumber, null);
+            $timezones = $timezoneMapper->getTimeZonesForNumber($number);
+            
+            $formatted = $phoneUtil->format(
+                $number,
+                \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+            );
+            
+            $localTime = null;
+            $timezoneInfo = null;
+            
+            if (!empty($timezones)) {
+                $tz = new DateTimeZone($timezones[0]);
+                $dt = new DateTime('now', $tz);
+                
+                $localTime = $dt->format('g:i A');
+                $timezoneInfo = $timezones[0];
+                
+                // Calculate offset
+                $offset = $tz->getOffset($dt) / 3600;
+                $offsetStr = sprintf('UTC%+d', $offset);
+            }
+            
+            return [
+                'number' => $formatted,
+                'localTime' => $localTime,
+                'timezone' => $timezoneInfo,
+                'timezoneCount' => count($timezones)
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'number' => $phoneNumber,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    // Usage
+    $info = formatPhoneWithLocalTime('+41 44 668 18 00');
+    echo "{$info['number']} - Local time: {$info['localTime']} ({$info['timezone']})";
+    // Output: +41 44 668 18 00 - Local time: 3:30 PM (Europe/Zurich)
+    ```
+  </Tab>
+  
+  <Tab title="Batch Processing">
+    ```php
+    class TimezoneAnalyzer
+    {
+        private PhoneNumberUtil $phoneUtil;
+        private PhoneNumberToTimeZonesMapper $timezoneMapper;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+            $this->timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+        }
+        
+        public function groupByTimezone(array $phoneNumbers): array
+        {
+            $grouped = [];
+            
+            foreach ($phoneNumbers as $id => $phoneNumber) {
+                try {
+                    $number = $this->phoneUtil->parse($phoneNumber, null);
+                    $timezones = $this->timezoneMapper->getTimeZonesForNumber($number);
+                    
+                    if (empty($timezones)) {
+                        $grouped['unknown'][] = [
+                            'id' => $id,
+                            'number' => $phoneNumber
+                        ];
+                        continue;
+                    }
+                    
+                    // Group by first/primary timezone
+                    $tz = $timezones[0];
+                    
+                    if (!isset($grouped[$tz])) {
+                        $grouped[$tz] = [];
+                    }
+                    
+                    $grouped[$tz][] = [
+                        'id' => $id,
+                        'number' => $phoneNumber,
+                        'e164' => $this->phoneUtil->format(
+                            $number,
+                            \libphonenumber\PhoneNumberFormat::E164
+                        )
+                    ];
+                    
+                } catch (\Exception $e) {
+                    $grouped['error'][] = [
+                        'id' => $id,
+                        'number' => $phoneNumber,
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+            
+            return $grouped;
+        }
+        
+        public function getOptimalCallTimes(
+            array $phoneNumbers,
+            int $callHour = 10
+        ): array {
+            $grouped = $this->groupByTimezone($phoneNumbers);
+            $schedule = [];
+            
+            foreach ($grouped as $timezone => $numbers) {
+                if ($timezone === 'unknown' || $timezone === 'error') {
+                    continue;
+                }
+                
+                try {
+                    $tz = new DateTimeZone($timezone);
+                    $callTime = new DateTime('now', $tz);
+                    $callTime->setTime($callHour, 0, 0);
+                    
+                    if ($callTime < new DateTime('now', $tz)) {
+                        $callTime->modify('+1 day');
+                    }
+                    
+                    $schedule[] = [
+                        'timezone' => $timezone,
+                        'callTime' => $callTime,
+                        'callTimeLocal' => $callTime->format('Y-m-d H:i:s T'),
+                        'numberCount' => count($numbers),
+                        'numbers' => $numbers
+                    ];
+                    
+                } catch (\Exception $e) {
+                    continue;
+                }
+            }
+            
+            // Sort by call time
+            usort($schedule, fn($a, $b) => $a['callTime'] <=> $b['callTime']);
+            
+            return $schedule;
+        }
+    }
+    
+    // Usage
+    $analyzer = new TimezoneAnalyzer();
+    $numbers = [
+        'contact1' => '+41 44 668 18 00',
+        'contact2' => '+1 650 253 0000',
+        'contact3' => '+44 117 496 0123'
+    ];
+    
+    $schedule = $analyzer->getOptimalCallTimes($numbers, 10);
+    
+    foreach ($schedule as $batch) {
+        echo "Call {$batch['numberCount']} numbers in {$batch['timezone']} ";
+        echo "at {$batch['callTimeLocal']}\n";
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Handling Unknown Timezones
+
+Some numbers may not have timezone data:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+
+$number = $phoneUtil->parse($phoneNumber, $region);
+$timezones = $timezoneMapper->getTimeZonesForNumber($number);
+
+if (empty($timezones)) {
+    // No timezone data - could be:
+    // - Invalid number
+    // - Region without timezone mapping
+    // - Special number type (emergency, etc.)
+    
+    // Get unknown timezone constant
+    $unknown = $timezoneMapper->getUnknownTimeZone();
+    echo "Timezone: $unknown"; // "Etc/Unknown"
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use First Timezone" icon="clock">
+    When multiple timezones exist, use the first one as the most representative
+  </Card>
+  
+  <Card title="Respect Business Hours" icon="business-time">
+    Always check local time before calling or sending messages
+  </Card>
+  
+  <Card title="Handle Empty Results" icon="circle-exclamation">
+    Not all numbers have timezone data - always check for empty arrays
+  </Card>
+  
+  <Card title="Cache Timezone Lookups" icon="database">
+    Cache timezone results for frequently accessed numbers
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Warning>
+**What timezone mapping cannot do:**
+- Provide real-time location of mobile phones
+- Account for daylight saving time changes automatically (use DateTimeZone for DST)
+- Guarantee single timezone for mobile or toll-free numbers
+- Work with invalid or unparseable numbers
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Geocoding" icon="location-dot" href="/guides/geocoding">
+    Get geographic location information
+  </Card>
+  
+  <Card title="Carrier Mapping" icon="tower-cell" href="/guides/carrier-mapping">
+    Identify mobile carriers
+  </Card>
+  
+  <Card title="Timezone Mapper API" icon="code" href="/api/phone-number-to-timezones-mapper">
+    Complete API reference for timezone mapping
+  </Card>
+  
+  <Card title="Number Types" icon="list" href="/api/phone-number-type">
+    Understanding different phone number types
+  </Card>
+</CardGroup>

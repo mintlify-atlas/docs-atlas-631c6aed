@@ -1,0 +1,188 @@
+---
+title: 'PhoneNumberOfflineGeocoder'
+description: 'Get geographic location descriptions for phone numbers with multi-language support'
+---
+
+## Overview
+
+The `PhoneNumberOfflineGeocoder` class provides geographic location information for phone numbers. It can return the name of cities, regions, or countries where a phone number is registered, with support for multiple languages and locales.
+
+## Getting an Instance
+
+The geocoder uses a singleton pattern. Get an instance using the static `getInstance()` method:
+
+```php
+$geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+```
+
+<ParamField query="mappingNamespace" type="string" default="libphonenumber\\geocoding\\data\\">
+  Optional namespace for custom mapping data. Only needed for advanced use cases.
+</ParamField>
+
+## Methods
+
+### getDescriptionForNumber()
+
+Returns a text description for a phone number in the specified language. The description might be a city name (e.g., "Zurich"), a region (e.g., "Mountain View, CA"), or a country name.
+
+```php
+public function getDescriptionForNumber(
+    PhoneNumber $number, 
+    string $locale, 
+    ?string $userRegion = null
+): string
+```
+
+<ParamField query="number" type="PhoneNumber" required>
+  The phone number to get location information for.
+</ParamField>
+
+<ParamField query="locale" type="string" required>
+  The language code for the description (e.g., "en", "de_DE", "it_IT", "ko-KR"). Supports both underscore and hyphen separators.
+</ParamField>
+
+<ParamField query="userRegion" type="string | null" default="null">
+  Optional two-letter uppercase CLDR region code (e.g., "US", "GB"). When provided, if the phone number is from the same region, only lower-level geographic details are returned instead of the country name.
+</ParamField>
+
+<ResponseField name="return" type="string">
+  A localized description of the phone number's location, or an empty string if the number is invalid or no description is available.
+</ResponseField>
+
+#### Localization Examples
+
+The same Swiss number shows different city name spellings based on locale:
+
+<Tabs>
+  <Tab title="English">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $swissNumber = $phoneUtil->parse("044 668 18 00", "CH");
+    
+    $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+    echo $geocoder->getDescriptionForNumber($swissNumber, "en_US");
+    // Output: "Zurich"
+    ```
+  </Tab>
+  <Tab title="German">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $swissNumber = $phoneUtil->parse("044 668 18 00", "CH");
+    
+    $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+    echo $geocoder->getDescriptionForNumber($swissNumber, "de_DE");
+    // Output: "Zürich"
+    ```
+  </Tab>
+  <Tab title="Italian">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $swissNumber = $phoneUtil->parse("044 668 18 00", "CH");
+    
+    $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+    echo $geocoder->getDescriptionForNumber($swissNumber, "it_IT");
+    // Output: "Zurigo"
+    ```
+  </Tab>
+</Tabs>
+
+#### User Region Context
+
+The `$userRegion` parameter affects the level of detail returned:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$gbNumber = $phoneUtil->parse('0161 496 0123', 'GB');
+
+$geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+
+// User in GB - shows city only
+echo $geocoder->getDescriptionForNumber($gbNumber, 'en', 'GB');
+// Output: "Manchester"
+
+// User in US - shows country
+echo $geocoder->getDescriptionForNumber($gbNumber, 'en', 'US');
+// Output: "United Kingdom"
+
+// User in US with Korean locale - shows country in Korean
+echo $geocoder->getDescriptionForNumber($gbNumber, 'ko-KR', 'US');
+// Output: "영국" (Korean for United Kingdom)
+```
+
+#### US Number Example
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$usNumber = $phoneUtil->parse("+1 650 253 0000", "US");
+
+$geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+
+// Shows detailed location for US users
+echo $geocoder->getDescriptionForNumber($usNumber, 'en', 'US');
+// Output: "Mountain View, CA"
+
+// Shows country for non-US users
+echo $geocoder->getDescriptionForNumber($usNumber, 'en', 'GB');
+// Output: "United States"
+```
+
+### getDescriptionForValidNumber()
+
+Same as `getDescriptionForNumber()`, but assumes the number has already been validated and is suitable for geocoding. Skips validation checks for better performance.
+
+```php
+public function getDescriptionForValidNumber(
+    PhoneNumber $number,
+    string $locale,
+    ?string $userRegion = null
+): string
+```
+
+<Note>
+  Only use this method if you've already verified the number is valid and geographical. For most use cases, prefer `getDescriptionForNumber()` which includes validation.
+</Note>
+
+## Complete Example
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\geocoding\PhoneNumberOfflineGeocoder;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$geocoder = PhoneNumberOfflineGeocoder::getInstance();
+
+// Parse different phone numbers
+$swissNumber = $phoneUtil->parse("044 668 18 00", "CH");
+$usNumber = $phoneUtil->parse("+1 650 253 0000", "US");
+$gbNumber = $phoneUtil->parse("0161 496 0000", "GB");
+
+// Swiss number in multiple languages
+echo $geocoder->getDescriptionForNumber($swissNumber, "en_US") . "\n";
+// "Zurich"
+
+echo $geocoder->getDescriptionForNumber($swissNumber, "de_DE") . "\n";
+// "Zürich"
+
+echo $geocoder->getDescriptionForNumber($swissNumber, "it_IT") . "\n";
+// "Zurigo"
+
+// US number
+echo $geocoder->getDescriptionForNumber($usNumber, "en_US") . "\n";
+// "Mountain View, CA"
+
+echo $geocoder->getDescriptionForNumber($usNumber, "ko-KR", "KR") . "\n";
+// "미국" (Korean for United States)
+
+// GB number
+echo $geocoder->getDescriptionForNumber($gbNumber, "en_GB") . "\n";
+// "Manchester"
+```
+
+## Notes
+
+<Note>
+  - Geographic descriptions work best for **fixed-line** and **mobile** numbers
+  - Non-geographical numbers (like toll-free numbers) typically return only the country name
+  - The geocoder uses the locale to determine both the language and regional spelling conventions
+  - If no detailed geographic data is available, the country name is returned as a fallback
+</Note>

@@ -1,0 +1,347 @@
+---
+title: Lite Version
+description: Using giggsey/libphonenumber-for-php-lite for reduced package size and memory footprint
+---
+
+The lite version of libphonenumber-for-php provides core phone number functionality with a significantly smaller package size. It's ideal for applications that only need basic parsing, formatting, and validation.
+
+## Overview
+
+The [giggsey/libphonenumber-for-php-lite](https://github.com/giggsey/libphonenumber-for-php-lite) package is a streamlined version that includes:
+
+✅ Core PhoneNumberUtil functionality
+✅ Phone number parsing
+✅ Phone number formatting
+✅ Phone number validation
+✅ All country metadata
+
+❌ Geocoding (PhoneNumberOfflineGeocoder)
+❌ Carrier mapping (PhoneNumberToCarrierMapper)
+❌ Timezone mapping (PhoneNumberToTimeZonesMapper)
+❌ Short number information (ShortNumberInfo)
+
+<Note>
+  The lite version includes all the same metadata as the full version, so it supports all countries and regions. The only difference is the exclusion of additional features beyond core phone number operations.
+</Note>
+
+## Installation
+
+Install the lite version using Composer:
+
+```bash
+composer require giggsey/libphonenumber-for-php-lite
+```
+
+<Warning>
+  Do not install both the full and lite versions in the same project. They will conflict as they provide the same namespace and classes.
+</Warning>
+
+## Package Size Comparison
+
+The lite version offers significant space savings:
+
+| Package | Installed Size | Download Size |
+|---------|---------------|---------------|
+| Full Version | ~15-20 MB | ~3-4 MB |
+| Lite Version | ~10-12 MB | ~2-3 MB |
+
+The reduction comes from excluding:
+
+- Geocoding data files
+- Carrier mapping data files
+- Timezone mapping data files
+- Short number metadata
+- Related class files
+
+## When to Use Lite Version
+
+Choose the lite version when:
+
+<CardGroup cols={2}>
+  <Card title="Basic Operations Only" icon="check">
+    You only need parsing, formatting, and validation
+  </Card>
+  
+  <Card title="Package Size Matters" icon="box">
+    Minimizing deployment size is important (containers, serverless)
+  </Card>
+  
+  <Card title="Memory Constraints" icon="microchip">
+    Running in memory-limited environments
+  </Card>
+  
+  <Card title="Faster Deployments" icon="rocket">
+    Quicker deployment times are a priority
+  </Card>
+</CardGroup>
+
+## When to Use Full Version
+
+Choose the full version when you need:
+
+- **Geocoding**: Determining geographic location from phone numbers
+- **Carrier Information**: Identifying mobile network operators
+- **Timezone Mapping**: Finding timezones for phone numbers
+- **Short Numbers**: Validating emergency numbers, toll-free numbers, etc.
+
+## Usage Comparison
+
+The API is identical for features included in both versions:
+
+### Lite Version ✅
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+// Parsing
+$number = $phoneUtil->parse("+1 650 253 0000", "US");
+
+// Validation
+$isValid = $phoneUtil->isValidNumber($number);
+
+// Formatting
+$e164 = $phoneUtil->format($number, PhoneNumberFormat::E164);
+$intl = $phoneUtil->format($number, PhoneNumberFormat::INTERNATIONAL);
+$national = $phoneUtil->format($number, PhoneNumberFormat::NATIONAL);
+
+// Type checking
+$numberType = $phoneUtil->getNumberType($number);
+
+// Region code
+$region = $phoneUtil->getRegionCodeForNumber($number);
+```
+
+### Full Version Only ❌
+
+```php
+use libphonenumber\PhoneNumberOfflineGeocoder;
+use libphonenumber\PhoneNumberToCarrierMapper;
+use libphonenumber\PhoneNumberToTimeZonesMapper;
+use libphonenumber\ShortNumberInfo;
+
+// These classes are NOT available in the lite version
+
+$geocoder = PhoneNumberOfflineGeocoder::getInstance();
+$location = $geocoder->getDescriptionForNumber($number, "en_US");
+
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+$carrier = $carrierMapper->getNameForNumber($number, "en");
+
+$timezoneMapper = PhoneNumberToTimeZonesMapper::getInstance();
+$timezones = $timezoneMapper->getTimeZonesForNumber($number);
+
+$shortInfo = ShortNumberInfo::getInstance();
+$isEmergency = $shortInfo->isEmergencyNumber("911", "US");
+```
+
+## Migration Guide
+
+### Switching FROM Full TO Lite
+
+1. **Audit your codebase** for usage of excluded features:
+
+```bash
+# Search for geocoding usage
+grep -r "PhoneNumberOfflineGeocoder" .
+
+# Search for carrier mapping
+grep -r "PhoneNumberToCarrierMapper" .
+
+# Search for timezone mapping
+grep -r "PhoneNumberToTimeZonesMapper" .
+
+# Search for short number info
+grep -r "ShortNumberInfo" .
+```
+
+2. **Refactor or remove** features that depend on excluded functionality
+
+3. **Update composer.json**:
+
+```json
+{
+  "require": {
+    "giggsey/libphonenumber-for-php-lite": "^9.0"
+  }
+}
+```
+
+4. **Run composer update**:
+
+```bash
+composer update giggsey/libphonenumber-for-php-lite
+```
+
+### Switching FROM Lite TO Full
+
+Switching from lite to full is seamless since the lite version is a subset:
+
+```bash
+composer require giggsey/libphonenumber-for-php
+```
+
+All existing code continues to work, and you can now use additional features.
+
+## Composer Replace
+
+The full package includes a `replace` directive in composer.json:
+
+```json
+"replace": {
+    "giggsey/libphonenumber-for-php-lite": "self.version"
+}
+```
+
+This means if you require the lite version but the full version is installed, Composer will satisfy the dependency without conflicts.
+
+<Accordion title="Understanding Composer Replace">
+  The `replace` directive tells Composer that the full package can be used anywhere the lite package is required. This is useful when:
+  
+  - A dependency requires the lite version
+  - You want to use the full version
+  - Both can coexist in the same dependency tree
+  
+  Composer will automatically use the full version to satisfy lite version requirements.
+</Accordion>
+
+## Performance Considerations
+
+### Memory Usage
+
+Both versions have similar memory usage for core operations since they use the same metadata structure. The difference is in features not loaded:
+
+```php
+// Both versions use ~2-5 MB for PhoneNumberUtil
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+// Full version ONLY
+// Additional ~1-3 MB when using geocoding
+$geocoder = PhoneNumberOfflineGeocoder::getInstance();
+
+// Additional ~1-2 MB when using carrier mapping
+$carrier = PhoneNumberToCarrierMapper::getInstance();
+```
+
+### Loading Time
+
+The lite version loads slightly faster due to:
+
+- Fewer class files to autoload
+- No additional data files to discover
+- Smaller overall codebase
+
+Typical difference: 10-50ms faster initial load time
+
+<Note>
+  After the first request with OPcache enabled, performance differences between versions are negligible for core operations.
+</Note>
+
+## Use Cases
+
+### Serverless Functions
+
+The lite version is ideal for AWS Lambda, Google Cloud Functions, etc.:
+
+```php
+// AWS Lambda handler
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+function handler($event, $context) {
+    $phoneUtil = PhoneNumberUtil::getInstance();
+    
+    $number = $phoneUtil->parse($event['phone'], $event['region']);
+    
+    return [
+        'isValid' => $phoneUtil->isValidNumber($number),
+        'e164' => $phoneUtil->format($number, PhoneNumberFormat::E164),
+        'international' => $phoneUtil->format($number, PhoneNumberFormat::INTERNATIONAL)
+    ];
+}
+```
+
+Benefits:
+- Faster cold starts
+- Lower memory usage
+- Smaller deployment package
+
+### Docker Containers
+
+Reduce Docker image size:
+
+```dockerfile
+FROM php:8.1-alpine
+
+# Smaller vendor directory with lite version
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader
+
+COPY . .
+
+# Image is ~30MB smaller with lite version
+```
+
+### API Services
+
+For phone number validation APIs:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+class PhoneValidationController
+{
+    private PhoneNumberUtil $phoneUtil;
+    
+    public function validate(Request $request): JsonResponse
+    {
+        $this->phoneUtil = PhoneNumberUtil::getInstance();
+        
+        try {
+            $number = $this->phoneUtil->parse(
+                $request->input('phone'),
+                $request->input('region')
+            );
+            
+            return response()->json([
+                'valid' => $this->phoneUtil->isValidNumber($number),
+                'type' => $this->phoneUtil->getNumberType($number),
+                'e164' => $this->phoneUtil->format($number, PhoneNumberFormat::E164)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+}
+```
+
+## Decision Matrix
+
+<AccordionGroup>
+  <Accordion title="I only validate and format phone numbers">
+    **Use the lite version.** You don't need the additional features, and you'll benefit from the smaller package size.
+  </Accordion>
+  
+  <Accordion title="I need to show geographic location of phone numbers">
+    **Use the full version.** The geocoding feature is not available in the lite version.
+  </Accordion>
+  
+  <Accordion title="I validate emergency numbers">
+    **Use the full version.** ShortNumberInfo is required for emergency number validation.
+  </Accordion>
+  
+  <Accordion title="I'm deploying to a serverless platform">
+    **Consider the lite version** if you only need core functionality. The smaller package size results in faster deployments and lower costs.
+  </Accordion>
+  
+  <Accordion title="I might need additional features in the future">
+    **Use the full version.** It's easier to start with the full version than to migrate later if you discover you need additional features.
+  </Accordion>
+</AccordionGroup>
+
+## Related Topics
+
+- [Performance](/advanced/performance) - Optimization strategies for both versions
+- [PhoneNumberUtil](/core/phonenumberutil) - Core functionality available in both versions

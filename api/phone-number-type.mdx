@@ -1,0 +1,213 @@
+---
+title: 'PhoneNumberType'
+description: 'Enumeration of phone number types'
+---
+
+## Overview
+
+`PhoneNumberType` is an enum that represents different types of phone numbers. Use this to categorize phone numbers and understand their characteristics.
+
+## Getting the Type
+
+Get the type of a phone number using `PhoneNumberUtil::getNumberType()`:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$number = $phoneUtil->parse('+14155552671', 'US');
+$type = $phoneUtil->getNumberType($number);
+
+if ($type === \libphonenumber\PhoneNumberType::MOBILE) {
+    echo "This is a mobile number";
+}
+```
+
+## Phone Number Types
+
+The following types are available in the `PhoneNumberType` enum:
+
+| Type | Value | Description |
+|------|-------|-------------|
+| **FIXED_LINE** | 0 | Traditional landline numbers |
+| **MOBILE** | 1 | Mobile/cellular numbers |
+| **FIXED_LINE_OR_MOBILE** | 2 | Numbers that could be either fixed-line or mobile. In some regions (e.g., USA), it's impossible to distinguish between these types. |
+| **TOLL_FREE** | 3 | Freephone lines (e.g., 800, 888 numbers in the US) |
+| **PREMIUM_RATE** | 4 | Premium rate numbers that charge higher rates |
+| **SHARED_COST** | 5 | Numbers where the call cost is shared between caller and recipient (typically less than premium rate) |
+| **VOIP** | 6 | Voice over IP numbers, including TSoIP (Telephony Service over IP) |
+| **PERSONAL_NUMBER** | 7 | Personal numbers associated with a person, may route to mobile or fixed-line |
+| **PAGER** | 8 | Pager numbers |
+| **UAN** | 9 | Universal Access Numbers or Company Numbers (one number for entire company) |
+| **UNKNOWN** | 10 | Numbers that don't fit any known pattern for the region |
+| **EMERGENCY** | 27 | Emergency service numbers (e.g., 911, 999) |
+| **VOICEMAIL** | 28 | Voicemail access numbers |
+| **SHORT_CODE** | 29 | Short codes (typically 4-6 digits) |
+| **STANDARD_RATE** | 30 | Standard rate numbers |
+
+## Usage Examples
+
+### Basic Type Checking
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$number = $phoneUtil->parse('+14155552671', 'US');
+$type = $phoneUtil->getNumberType($number);
+
+switch ($type) {
+    case \libphonenumber\PhoneNumberType::MOBILE:
+        echo "Mobile number";
+        break;
+    case \libphonenumber\PhoneNumberType::FIXED_LINE:
+        echo "Landline number";
+        break;
+    case \libphonenumber\PhoneNumberType::TOLL_FREE:
+        echo "Toll-free number";
+        break;
+    default:
+        echo "Other type: " . $type->name;
+}
+```
+
+### Filtering by Type
+
+```php
+function isMobileNumber(string $phoneNumber, string $region): bool
+{
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    try {
+        $number = $phoneUtil->parse($phoneNumber, $region);
+        $type = $phoneUtil->getNumberType($number);
+        
+        return $type === \libphonenumber\PhoneNumberType::MOBILE
+            || $type === \libphonenumber\PhoneNumberType::FIXED_LINE_OR_MOBILE;
+    } catch (\libphonenumber\NumberParseException $e) {
+        return false;
+    }
+}
+
+// Usage
+if (isMobileNumber('+14155552671', 'US')) {
+    echo "Can send SMS";
+}
+```
+
+### Handling Different Types
+
+<CodeGroup>
+```php Check Toll-Free
+$number = $phoneUtil->parse('18005551234', 'US');
+$type = $phoneUtil->getNumberType($number);
+
+if ($type === \libphonenumber\PhoneNumberType::TOLL_FREE) {
+    echo "This is a toll-free number";
+}
+```
+
+```php Check Premium Rate
+$number = $phoneUtil->parse('0900123456', 'GB');
+$type = $phoneUtil->getNumberType($number);
+
+if ($type === \libphonenumber\PhoneNumberType::PREMIUM_RATE) {
+    echo "Warning: This number may charge premium rates";
+}
+```
+
+```php Check VoIP
+$number = $phoneUtil->parse('+442033222305', 'GB');
+$type = $phoneUtil->getNumberType($number);
+
+if ($type === \libphonenumber\PhoneNumberType::VOIP) {
+    echo "This is a VoIP number";
+}
+```
+</CodeGroup>
+
+### Business Logic Based on Type
+
+```php
+function canSendSMS(\libphonenumber\PhoneNumber $number): bool
+{
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $type = $phoneUtil->getNumberType($number);
+    
+    // SMS can typically be sent to mobile and some fixed-line-or-mobile numbers
+    return in_array($type, [
+        \libphonenumber\PhoneNumberType::MOBILE,
+        \libphonenumber\PhoneNumberType::FIXED_LINE_OR_MOBILE,
+    ], true);
+}
+
+function shouldWarnAboutCost(\libphonenumber\PhoneNumber $number): bool
+{
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $type = $phoneUtil->getNumberType($number);
+    
+    // Warn about potentially expensive numbers
+    return in_array($type, [
+        \libphonenumber\PhoneNumberType::PREMIUM_RATE,
+        \libphonenumber\PhoneNumberType::SHARED_COST,
+    ], true);
+}
+```
+
+### Regional Differences
+
+```php
+// In the US, many numbers could be either mobile or fixed-line
+$usNumber = $phoneUtil->parse('+12015550123', 'US');
+$usType = $phoneUtil->getNumberType($usNumber);
+
+if ($usType === \libphonenumber\PhoneNumberType::FIXED_LINE_OR_MOBILE) {
+    echo "Cannot determine if mobile or fixed-line in US";
+}
+
+// In the UK, mobile numbers have distinct prefixes
+$ukMobile = $phoneUtil->parse('+447400123456', 'GB');
+$ukType = $phoneUtil->getNumberType($ukMobile);
+
+if ($ukType === \libphonenumber\PhoneNumberType::MOBILE) {
+    echo "Definitely a mobile number in UK";
+}
+```
+
+## Type Characteristics
+
+### Common Use Cases by Type
+
+**FIXED_LINE**
+- Business landlines
+- Residential phones
+- May not support SMS
+
+**MOBILE**
+- Cell phones
+- Supports SMS and calls
+- May have different rate plans
+
+**TOLL_FREE**
+- Customer service lines
+- Free for caller to dial
+- Business uses (800, 888, 877, etc.)
+
+**PREMIUM_RATE**
+- Pay-per-call services
+- Entertainment lines
+- Higher charges apply
+
+**VOIP**
+- Internet-based phone services
+- May have different routing
+- Often used by businesses
+
+**UAN (Universal Access Numbers)**
+- Single number for organizations
+- Routes to multiple locations
+- Common for large companies
+
+## See Also
+
+- [PhoneNumberUtil](/api/phone-number-util) - Use `getNumberType()` to determine type
+- [PhoneNumber](/api/phone-number) - The phone number object being categorized
+- [Validation](/guides/validation) - Validate numbers before checking type

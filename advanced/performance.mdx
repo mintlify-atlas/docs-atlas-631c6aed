@@ -1,0 +1,346 @@
+---
+title: Performance Optimization
+description: Best practices for optimizing libphonenumber-for-php performance in production
+---
+
+Understanding how libphonenumber-for-php manages resources is crucial for building high-performance applications. This guide covers optimization strategies and best practices.
+
+## Singleton Pattern
+
+PhoneNumberUtil is implemented as a singleton to optimize memory usage and initialization overhead.
+
+### Always Use getInstance()
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+// ✅ CORRECT - Uses singleton instance
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+// ❌ INCORRECT - Creates new instance each time (not recommended)
+$phoneUtil = new PhoneNumberUtil(...);
+```
+
+The singleton pattern ensures that:
+
+- Only one instance exists per process
+- Metadata is loaded once and reused
+- Memory footprint is minimized
+
+### How getInstance() Works
+
+From `src/PhoneNumberUtil.php:426-442`:
+
+```php
+/**
+ * Gets a PhoneNumberUtil instance to carry out international phone number
+ * formatting, parsing or validation. The instance is loaded with phone number
+ * metadata for a number of most commonly used regions.
+ *
+ * The PhoneNumberUtil is implemented as a singleton. Therefore calling
+ * getInstance multiple times will only result in one instance being created.
+ */
+public static function getInstance(
+    string $metadataLocation = __NAMESPACE__ . '\\data\\PhoneNumberMetadata_',
+    array $countryCallingCodeToRegionCodeMap = CountryCodeToRegionCodeMap::COUNTRY_CODE_TO_REGION_CODE_MAP,
+): PhoneNumberUtil {
+    if (!isset(static::$instance)) {
+        $metadataSource = new MultiFileMetadataSourceImpl($metadataLocation);
+        static::$instance = new static($metadataSource, $countryCallingCodeToRegionCodeMap);
+    }
+    return static::$instance;
+}
+```
+
+<Note>
+  Calling `getInstance()` multiple times is safe and efficient - it returns the same instance without additional overhead.
+</Note>
+
+## Lazy Metadata Loading
+
+One of the library's key performance features is lazy loading of metadata. Country-specific metadata is only loaded when needed.
+
+### How Metadata Loading Works
+
+The `MultiFileMetadataSourceImpl` class loads metadata on-demand:
+
+```php
+public function getMetadataForRegion(string $regionCode): PhoneMetadata
+{
+    $regionCode = strtoupper($regionCode);
+
+    if (!isset($this->regionToMetadataMap[$regionCode])) {
+        // Load metadata only when first accessed
+        $this->loadMetadataFromFile($this->currentFilePrefix, $regionCode, 0);
+    }
+
+    return $this->regionToMetadataMap[$regionCode];
+}
+```
+
+### Performance Impact
+
+```php
+// First call for US numbers - loads US metadata
+$usNumber = $phoneUtil->parse("+1 650 253 0000", "US");
+
+// Subsequent US numbers - uses cached metadata (faster)
+$usNumber2 = $phoneUtil->parse("+1 415 555 1234", "US");
+
+// First call for UK numbers - loads UK metadata
+$ukNumber = $phoneUtil->parse("+44 20 7031 3000", "GB");
+```
+
+<Note>
+  The first parse operation for a region is slower due to metadata loading. Subsequent operations for the same region are significantly faster.
+</Note>
+
+## Caching PhoneNumber Objects
+
+For frequently accessed phone numbers, consider caching the parsed `PhoneNumber` objects:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumber;
+
+class PhoneNumberCache
+{
+    private array $cache = [];
+    private PhoneNumberUtil $phoneUtil;
+    
+    public function __construct()
+    {
+        $this->phoneUtil = PhoneNumberUtil::getInstance();
+    }
+    
+    public function parse(string $number, string $region): PhoneNumber
+    {
+        $key = $number . '_' . $region;
+        
+        if (!isset($this->cache[$key])) {
+            $this->cache[$key] = $this->phoneUtil->parse($number, $region);
+        }
+        
+        return $this->cache[$key];
+    }
+}
+```
+
+### When to Cache
+
+Caching is beneficial when:
+
+- Processing the same phone numbers multiple times
+- Displaying formatted numbers in lists or tables
+- Performing multiple validation operations on the same number
+
+### Cache Considerations
+
+<Warning>
+  Be mindful of memory usage when caching PhoneNumber objects. Each object consumes memory, so implement cache size limits or use a proper caching solution like Redis or Memcached for large-scale applications.
+</Warning>
+
+## Batch Processing
+
+When processing multiple phone numbers, reuse the PhoneNumberUtil instance:
+
+```php
+// ✅ EFFICIENT - Single getInstance call
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+foreach ($phoneNumbers as $number) {
+    try {
+        $parsed = $phoneUtil->parse($number, $defaultRegion);
+        if ($phoneUtil->isValidNumber($parsed)) {
+            $formatted = $phoneUtil->format($parsed, PhoneNumberFormat::E164);
+            // Process formatted number
+        }
+    } catch (\Exception $e) {
+        // Handle error
+    }
+}
+```
+
+```php
+// ❌ INEFFICIENT - Multiple getInstance calls (unnecessary overhead)
+foreach ($phoneNumbers as $number) {
+    $phoneUtil = PhoneNumberUtil::getInstance(); // Don't do this!
+    // ...
+}
+```
+
+## Database Storage
+
+For optimal database performance, store phone numbers in E164 format:
+
+```php
+use libphonenumber\PhoneNumberFormat;
+
+// Store in E164 format: +14155551234
+$e164 = $phoneUtil->format($phoneNumber, PhoneNumberFormat::E164);
+
+// Store in database
+$db->query("INSERT INTO contacts (phone) VALUES (?)", [$e164]);
+```
+
+### Benefits of E164 Storage
+
+- Consistent format across all phone numbers
+- Easy comparison and deduplication
+- Efficient indexing and searching
+- No loss of country code information
+
+### Retrieving from Database
+
+```php
+// Retrieve E164 format from database
+$e164Number = $db->query("SELECT phone FROM contacts WHERE id = ?", [$id]);
+
+// Parse for display
+$phoneNumber = $phoneUtil->parse($e164Number, null);
+$formatted = $phoneUtil->format($phoneNumber, PhoneNumberFormat::INTERNATIONAL);
+echo $formatted; // "+1 415 555 1234"
+```
+
+## Production Optimizations
+
+### 1. Enable OPcache
+
+Ensure OPcache is enabled to cache compiled PHP code:
+
+```ini
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+```
+
+### 2. Use Composer Autoloader Optimization
+
+Generate optimized autoloader for production:
+
+```bash
+composer install --optimize-autoloader --no-dev
+```
+
+### 3. Consider the Lite Version
+
+For applications that only need core functionality, use the lite version:
+
+```bash
+composer require giggsey/libphonenumber-for-php-lite
+```
+
+See the [Lite Version](/advanced/lite-version) page for details on what's included and performance benefits.
+
+## Memory Considerations
+
+The full library with all metadata loaded uses approximately:
+
+- **PhoneNumberUtil instance**: ~2-5 MB
+- **Per region metadata**: ~50-200 KB
+- **PhoneNumber objects**: ~1-2 KB each
+
+### Memory Profiling
+
+```php
+$memBefore = memory_get_usage();
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse("+1 650 253 0000", "US");
+
+$memAfter = memory_get_usage();
+$memUsed = $memAfter - $memBefore;
+
+echo "Memory used: " . ($memUsed / 1024) . " KB\n";
+```
+
+## Performance Benchmarks
+
+Typical operation performance (approximate):
+
+| Operation | First Call | Subsequent Calls |
+|-----------|-----------|------------------|
+| getInstance() | ~1-2ms | ~0.01ms |
+| parse() (new region) | ~5-10ms | ~1-2ms |
+| parse() (cached region) | ~1-2ms | ~1-2ms |
+| isValidNumber() | ~0.5-1ms | ~0.5-1ms |
+| format() | ~0.5-1ms | ~0.5-1ms |
+
+<Note>
+  These benchmarks vary based on hardware, PHP version, and OPcache configuration. Always benchmark in your specific environment.
+</Note>
+
+## Dependency Injection
+
+In frameworks with dependency injection, register PhoneNumberUtil as a singleton:
+
+```php
+// Symfony example
+services:
+    libphonenumber.phone_number_util:
+        class: libphonenumber\PhoneNumberUtil
+        factory: ['libphonenumber\PhoneNumberUtil', 'getInstance']
+        shared: true
+```
+
+```php
+// Laravel example
+use Illuminate\Support\ServiceProvider;
+use libphonenumber\PhoneNumberUtil;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function register()
+    {
+        $this->app->singleton(PhoneNumberUtil::class, function () {
+            return PhoneNumberUtil::getInstance();
+        });
+    }
+}
+```
+
+## Monitoring and Profiling
+
+Monitor performance in production:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+class MonitoredPhoneNumberUtil
+{
+    private PhoneNumberUtil $phoneUtil;
+    private LoggerInterface $logger;
+    
+    public function parse(string $number, string $region): PhoneNumber
+    {
+        $start = microtime(true);
+        
+        try {
+            $result = $this->phoneUtil->parse($number, $region);
+            $duration = microtime(true) - $start;
+            
+            if ($duration > 0.1) {
+                $this->logger->warning('Slow phone number parse', [
+                    'duration' => $duration,
+                    'region' => $region
+                ]);
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            $this->logger->error('Phone number parse error', [
+                'error' => $e->getMessage(),
+                'number' => $number,
+                'region' => $region
+            ]);
+            throw $e;
+        }
+    }
+}
+```
+
+## Related Topics
+
+- [Lite Version](/advanced/lite-version) - Smaller package size and reduced memory footprint
+- [Metadata Generation](/advanced/metadata-generation) - Understanding metadata structure and loading

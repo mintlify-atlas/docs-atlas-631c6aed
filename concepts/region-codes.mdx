@@ -1,0 +1,356 @@
+---
+title: "Region Codes"
+description: "Understanding CLDR two-letter region codes and their usage"
+---
+
+## What Are Region Codes?
+
+Region codes in libphonenumber for PHP are **two-letter codes** defined by the Unicode CLDR (Common Locale Data Repository) standard. These codes represent countries and geographical regions.
+
+<Info>
+  Region codes must be provided in **uppercase** format (e.g., "GB", "US", "FR").
+</Info>
+
+### Format Requirements
+
+- Must be exactly 2 characters long
+- Must be uppercase letters (A-Z)
+- Must match CLDR territory codes
+- Are case-sensitive in some contexts
+
+### Examples of Valid Region Codes
+
+```php
+'GB' // United Kingdom
+'US' // United States
+'FR' // France
+'DE' // Germany
+'JP' // Japan
+'AU' // Australia
+'CA' // Canada
+```
+
+<Warning>
+  Do not use ISO 3166-1 alpha-3 codes (e.g., "GBR") or numeric codes. Only two-letter CLDR codes are supported.
+</Warning>
+
+## Using Region Codes in Parsing
+
+Region codes are essential when parsing phone numbers that aren't in international format:
+
+### When Region Codes Are Required
+
+<Tabs>
+  <Tab title="Required">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    // National format requires region code
+    $number = $phoneUtil->parse('0117 496 0123', 'GB');
+    
+    // Local format requires region code
+    $number = $phoneUtil->parse('496 0123', 'GB');
+    
+    // Number without explicit country code
+    $number = $phoneUtil->parse('(650) 253-0000', 'US');
+    ```
+  </Tab>
+  <Tab title="Optional">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    // International format with + doesn't need region
+    $number = $phoneUtil->parse('+44 117 496 0123', null);
+    
+    // International format with IDD prefix
+    $number = $phoneUtil->parse('00 44 117 496 0123', 'FR');
+    ```
+  </Tab>
+</Tabs>
+
+### Default Region for Parsing
+
+The region code helps the parser understand:
+
+1. **National prefix rules** - How to strip leading digits (e.g., "0" in UK)
+2. **Number patterns** - What constitutes a valid number
+3. **IDD prefix** - International dialing prefix for that region (e.g., "00" in EU, "011" in US)
+4. **Number length** - Expected length for validation
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Same number, different regions = different interpretations
+$ukNumber = $phoneUtil->parse('117 496 0123', 'GB');
+$usNumber = $phoneUtil->parse('117 496 0123', 'US');
+
+echo $phoneUtil->format($ukNumber, \libphonenumber\PhoneNumberFormat::E164);
+// Output: +441174960123
+
+echo $phoneUtil->format($usNumber, \libphonenumber\PhoneNumberFormat::E164);
+// Output: +11174960123
+```
+
+## Special Region Codes
+
+The library uses special region codes for specific purposes:
+
+### 001 - Non-Geographical Entities
+
+The code `001` represents **non-geographical country calling codes**:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+// The constant for non-geographical regions
+echo PhoneNumberUtil::REGION_CODE_FOR_NON_GEO_ENTITY; // "001"
+```
+
+<Accordion title="What are non-geographical numbers?">
+  Non-geographical numbers are not tied to a specific country or location. Examples include:
+  - International toll-free numbers (e.g., +800)
+  - Satellite phone numbers
+  - Global mobile satellite system numbers
+  - Universal International Freephone Numbers (UIFN)
+</Accordion>
+
+#### Working with Non-Geographical Numbers
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Get metadata for non-geographical numbers
+$metadata = $phoneUtil->getMetadataForNonGeographicalRegion(800);
+
+// Get all non-geographical calling codes
+$nonGeoCodes = $phoneUtil->getSupportedGlobalNetworkCallingCodes();
+print_r($nonGeoCodes); // Array of country codes like 800, 808, etc.
+```
+
+### ZZ - Unknown Region
+
+The code `ZZ` represents an **unknown or invalid region**:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+echo PhoneNumberUtil::UNKNOWN_REGION; // "ZZ"
+```
+
+This is used internally when:
+- A region cannot be determined
+- An invalid region code is provided
+- Metadata is missing for a region
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Parsing with invalid region returns null or throws exception
+try {
+    $number = $phoneUtil->parse('123456', 'ZZ');
+} catch (\libphonenumber\NumberParseException $e) {
+    echo "Invalid region code";
+}
+```
+
+## Getting Region Information
+
+### Region Code from Phone Number
+
+Determine which region a parsed phone number belongs to:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('+44 117 496 0123', null);
+
+$regionCode = $phoneUtil->getRegionCodeForNumber($number);
+echo $regionCode; // "GB"
+```
+
+<Note>
+  For shared country codes (e.g., +1 for NANPA), the library uses leading digits and metadata to determine the specific region.
+</Note>
+
+### Country Code from Region
+
+Get the country calling code for a specific region:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$countryCode = $phoneUtil->getCountryCodeForRegion('GB');
+echo $countryCode; // 44
+
+$countryCode = $phoneUtil->getCountryCodeForRegion('US');
+echo $countryCode; // 1
+```
+
+### Regions from Country Code
+
+Some country codes are shared by multiple regions (e.g., NANPA countries share +1):
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$regions = $phoneUtil->getRegionCodesForCountryCode(1);
+print_r($regions);
+// Output: Array(
+//   [0] => US
+//   [1] => CA
+//   [2] => BS (Bahamas)
+//   [3] => BB (Barbados)
+//   ... and more NANPA countries
+// )
+
+$regions = $phoneUtil->getRegionCodesForCountryCode(44);
+print_r($regions);
+// Output: Array(
+//   [0] => GB
+// )
+```
+
+## Region-Specific Behavior
+
+### Supported Regions
+
+Get a list of all regions the library supports:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$supportedRegions = $phoneUtil->getSupportedRegions();
+echo count($supportedRegions); // 200+ regions
+
+// Check if a specific region is supported
+if (in_array('GB', $supportedRegions)) {
+    echo "UK is supported";
+}
+```
+
+### Regional Number Types
+
+Different regions support different phone number types:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Get supported types for a region
+$types = $phoneUtil->getSupportedTypesForRegion('GB');
+
+foreach ($types as $type) {
+    echo $type->name . "\n";
+}
+// Output:
+// FIXED_LINE
+// MOBILE
+// TOLL_FREE
+// PREMIUM_RATE
+// etc.
+```
+
+### Validating Numbers for Regions
+
+Check if a number is valid for a specific region:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('+44 117 496 0123', null);
+
+// Valid for UK?
+if ($phoneUtil->isValidNumberForRegion($number, 'GB')) {
+    echo "Valid UK number";
+}
+
+// Valid for France?
+if (!$phoneUtil->isValidNumberForRegion($number, 'FR')) {
+    echo "Not a valid French number";
+}
+```
+
+## Formatting for Different Regions
+
+### Out-of-Country Formatting
+
+Format a number as it would be dialed from another country:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$ukNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+// Dialing from France (uses 00 as IDD prefix)
+echo $phoneUtil->formatOutOfCountryCallingNumber($ukNumber, 'FR');
+// Output: 00 44 117 496 0123
+
+// Dialing from US (uses 011 as IDD prefix)
+echo $phoneUtil->formatOutOfCountryCallingNumber($ukNumber, 'US');
+// Output: 011 44 117 496 0123
+
+// Dialing from within UK (uses national format)
+echo $phoneUtil->formatOutOfCountryCallingNumber($ukNumber, 'GB');
+// Output: 0117 496 0123
+```
+
+### Mobile Dialing Format
+
+Format numbers for mobile dialing in a specific region:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$australianNumber = $phoneUtil->parse('1300123456', 'AU');
+
+// Formatted for dialing from Australia
+echo $phoneUtil->formatNumberForMobileDialing($australianNumber, 'AU', true);
+// Output: 1300 123 456
+
+// Cannot be dialed from US (returns empty string)
+echo $phoneUtil->formatNumberForMobileDialing($australianNumber, 'US', true);
+// Output: ""
+```
+
+<Warning>
+  Some numbers (like Australian 1300 numbers) cannot be dialed internationally. Always check if the formatted result is empty.
+</Warning>
+
+## Best Practices
+
+<Accordion title="Always validate region codes">
+  ```php
+  $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+  $supportedRegions = $phoneUtil->getSupportedRegions();
+  
+  $userRegion = 'GB'; // From user input
+  
+  if (in_array($userRegion, $supportedRegions)) {
+      $number = $phoneUtil->parse($phoneNumber, $userRegion);
+  } else {
+      throw new Exception("Unsupported region: " . $userRegion);
+  }
+  ```
+</Accordion>
+
+<Accordion title="Use uppercase region codes">
+  The library is case-sensitive in some contexts. Always use uppercase:
+  
+  ```php
+  // Good
+  $number = $phoneUtil->parse('123456', 'GB');
+  
+  // May cause issues
+  $number = $phoneUtil->parse('123456', 'gb');
+  ```
+</Accordion>
+
+<Accordion title="Handle shared country codes carefully">
+  When working with shared country codes (like +1 for NANPA), be aware that the same number format can belong to different regions:
+  
+  ```php
+  $number = $phoneUtil->parse('+1 242 365 1234', null);
+  $region = $phoneUtil->getRegionCodeForNumber($number);
+  echo $region; // "BS" (Bahamas), not "US"
+  ```
+</Accordion>
+
+## Reference
+
+For the complete list of supported CLDR region codes, visit:
+[CLDR Territory Information](http://www.unicode.org/cldr/charts/30/supplemental/territory_information.html)

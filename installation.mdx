@@ -1,0 +1,85 @@
+---
+title: Installation
+description: Install libphonenumber for PHP via Composer and configure your environment
+---
+
+## Requirements
+
+Before installing libphonenumber for PHP, ensure your environment meets these requirements:
+
+- **PHP 8.1 to 8.5** - The library supports all current PHP 8.x versions
+- **mbstring extension** - Required for proper string handling
+
+<Note>
+The library will be updated to use [supported versions of PHP](https://www.php.net/supported-versions.php) without major version bumps.
+</Note>
+
+## Install with Composer
+
+The recommended way to install libphonenumber for PHP is via [Composer](https://getcomposer.org):
+
+```bash
+composer require giggsey/libphonenumber-for-php
+```
+
+This command will:
+- Download the library and its dependencies
+- Set up PSR-4 autoloading automatically
+- Make all classes available under the `libphonenumber\` namespace
+
+<Tip>
+Composer will automatically handle the required dependency [giggsey/locale](https://github.com/giggsey/Locale).
+</Tip>
+
+## Alternative: Lite Version
+
+If you only need core phone number parsing, validation, and formatting functionality, consider using the lite version for a smaller package size:
+
+```bash
+composer require giggsey/libphonenumber-for-php-lite
+```
+
+<Note>
+The lite version excludes additional features like geocoding, carrier mapping, and timezone mapping. Use the standard version if you need these capabilities.
+</Note>
+
+## Manual Installation
+
+If you're not using Composer, you can manually install the library:
+
+1. Download the source code from [GitHub](https://github.com/giggsey/libphonenumber-for-php)
+2. Set up a PSR-4 compliant autoloader
+3. Manually install dependencies:
+   - [giggsey/locale](https://github.com/giggsey/Locale)
+   - [symfony/polyfill-mbstring](https://github.com/symfony/polyfill-mbstring)
+
+<Warning>
+Manual installation is not recommended. Use Composer to ensure all dependencies are properly managed and up-to-date.
+</Warning>
+
+## Verify Installation
+
+After installation, verify everything is working by creating a simple test script:
+
+```php
+<?php
+require 'vendor/autoload.php';
+
+use libphonenumber\PhoneNumberUtil;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+echo "libphonenumber for PHP is installed successfully!\n";
+```
+
+If you see the success message, you're ready to start using the library!
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Learn how to parse, validate, and format phone numbers
+  </Card>
+  <Card title="PhoneNumberUtil Reference" icon="book" href="/api/phone-number-util">
+    Explore all available methods and features
+  </Card>
+</CardGroup>

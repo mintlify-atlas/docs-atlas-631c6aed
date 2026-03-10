@@ -1,0 +1,602 @@
+---
+title: Error Handling
+description: Learn how to handle errors and exceptions when working with phone numbers
+---
+
+# Error Handling
+
+Proper error handling is crucial when working with phone numbers. This guide covers the exceptions you'll encounter and best practices for handling them gracefully.
+
+## NumberParseException
+
+The primary exception you'll encounter is `NumberParseException`, thrown when parsing fails:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\NumberParseException;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+try {
+    $number = $phoneUtil->parse('invalid', 'US');
+} catch (NumberParseException $e) {
+    echo "Error Type: " . $e->getErrorType();
+    echo "Message: " . $e->getMessage();
+}
+```
+
+## Error Types
+
+The `NumberParseException` provides five error type constants:
+
+<Tabs>
+  <Tab title="INVALID_COUNTRY_CODE">
+    **Error Code**: `0`
+    
+    The country code doesn't belong to a supported country:
+    
+    ```php
+    try {
+        // Invalid country code +9999
+        $number = $phoneUtil->parse('+9999 123 4567', null);
+    } catch (NumberParseException $e) {
+        if ($e->getErrorType() === NumberParseException::INVALID_COUNTRY_CODE) {
+            echo "The country code is not recognized";
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="NOT_A_NUMBER">
+    **Error Code**: `1`
+    
+    The string doesn't contain a valid phone number:
+    
+    ```php
+    try {
+        // Not enough digits
+        $number = $phoneUtil->parse('12', 'US');
+    } catch (NumberParseException $e) {
+        if ($e->getErrorType() === NumberParseException::NOT_A_NUMBER) {
+            echo "This is not a valid phone number format";
+        }
+    }
+    ```
+    
+    <Note>
+    This error means the string had less than 3 digits or failed basic validation patterns.
+    </Note>
+  </Tab>
+  
+  <Tab title="TOO_SHORT_AFTER_IDD">
+    **Error Code**: `2`
+    
+    After removing the international dialing prefix, the number is too short:
+    
+    ```php
+    try {
+        // Has IDD prefix but number is too short
+        $number = $phoneUtil->parse('011 44 123', 'US');
+    } catch (NumberParseException $e) {
+        if ($e->getErrorType() === NumberParseException::TOO_SHORT_AFTER_IDD) {
+            echo "Number is too short after removing country calling code";
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="TOO_SHORT_NSN">
+    **Error Code**: `3`
+    
+    The national significant number is too short:
+    
+    ```php
+    try {
+        // Number too short for US
+        $number = $phoneUtil->parse('123', 'US');
+    } catch (NumberParseException $e) {
+        if ($e->getErrorType() === NumberParseException::TOO_SHORT_NSN) {
+            echo "Phone number is too short";
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="TOO_LONG">
+    **Error Code**: `4`
+    
+    The number has more digits than any valid phone number:
+    
+    ```php
+    try {
+        // Way too many digits
+        $number = $phoneUtil->parse('12345678901234567890', 'US');
+    } catch (NumberParseException $e) {
+        if ($e->getErrorType() === NumberParseException::TOO_LONG) {
+            echo "Phone number is too long";
+        }
+    }
+    ```
+    
+    <Note>
+    The maximum length for phone numbers is typically 17 digits.
+    </Note>
+  </Tab>
+</Tabs>
+
+## User-Friendly Error Messages
+
+Convert error types to user-friendly messages:
+
+```php
+function getErrorMessage(NumberParseException $e): string
+{
+    return match($e->getErrorType()) {
+        NumberParseException::INVALID_COUNTRY_CODE => 
+            'The country code is not recognized. Please check the number.',
+        NumberParseException::NOT_A_NUMBER => 
+            'This doesn\'t appear to be a valid phone number.',
+        NumberParseException::TOO_SHORT_AFTER_IDD => 
+            'The phone number is too short for the country specified.',
+        NumberParseException::TOO_SHORT_NSN => 
+            'The phone number is too short. Please check and try again.',
+        NumberParseException::TOO_LONG => 
+            'The phone number is too long. Please check and try again.',
+        default => 
+            'Unable to parse the phone number. Please check the format.'
+    };
+}
+
+// Usage
+try {
+    $number = $phoneUtil->parse($userInput, $region);
+} catch (NumberParseException $e) {
+    echo getErrorMessage($e);
+}
+```
+
+## Complete Error Handling Pattern
+
+<Steps>
+  <Step title="Parse with Try-Catch">
+    ```php
+    $phoneUtil = PhoneNumberUtil::getInstance();
+    
+    try {
+        $number = $phoneUtil->parse($userInput, $region);
+    } catch (NumberParseException $e) {
+        // Handle parsing error
+        return [
+            'success' => false,
+            'error' => getErrorMessage($e),
+            'errorCode' => $e->getErrorType()
+        ];
+    }
+    ```
+  </Step>
+  
+  <Step title="Validate the Parsed Number">
+    ```php
+    if (!$phoneUtil->isValidNumber($number)) {
+        return [
+            'success' => false,
+            'error' => 'The phone number is not valid',
+            'errorCode' => 'INVALID_NUMBER'
+        ];
+    }
+    ```
+  </Step>
+  
+  <Step title="Optional: Additional Validation">
+    ```php
+    // Check if it's a mobile number (if required)
+    $type = $phoneUtil->getNumberType($number);
+    if ($type !== PhoneNumberType::MOBILE) {
+        return [
+            'success' => false,
+            'error' => 'Please provide a mobile phone number',
+            'errorCode' => 'NOT_MOBILE'
+        ];
+    }
+    ```
+  </Step>
+  
+  <Step title="Return Success">
+    ```php
+    return [
+        'success' => true,
+        'number' => $phoneUtil->format(
+            $number,
+            PhoneNumberFormat::E164
+        ),
+        'formatted' => $phoneUtil->format(
+            $number,
+            PhoneNumberFormat::INTERNATIONAL
+        )
+    ];
+    ```
+  </Step>
+</Steps>
+
+## Practical Examples
+
+<Tabs>
+  <Tab title="Form Validation">
+    ```php
+    class PhoneNumberValidator
+    {
+        private PhoneNumberUtil $phoneUtil;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+        }
+        
+        public function validate(
+            string $input,
+            string $region
+        ): array {
+            // Empty check
+            if (empty(trim($input))) {
+                return [
+                    'valid' => false,
+                    'error' => 'Phone number is required'
+                ];
+            }
+            
+            // Parse
+            try {
+                $number = $this->phoneUtil->parse($input, $region);
+            } catch (NumberParseException $e) {
+                return [
+                    'valid' => false,
+                    'error' => $this->getErrorMessage($e),
+                    'errorType' => $e->getErrorType()
+                ];
+            }
+            
+            // Validate
+            if (!$this->phoneUtil->isValidNumber($number)) {
+                return [
+                    'valid' => false,
+                    'error' => 'This phone number is not valid for any region'
+                ];
+            }
+            
+            // Check if it's for the expected region (optional)
+            if (!$this->phoneUtil->isValidNumberForRegion($number, $region)) {
+                return [
+                    'valid' => false,
+                    'error' => "This doesn't appear to be a {$region} phone number",
+                    'warning' => true // Soft error
+                ];
+            }
+            
+            return [
+                'valid' => true,
+                'e164' => $this->phoneUtil->format(
+                    $number,
+                    PhoneNumberFormat::E164
+                ),
+                'international' => $this->phoneUtil->format(
+                    $number,
+                    PhoneNumberFormat::INTERNATIONAL
+                ),
+                'type' => $this->phoneUtil->getNumberType($number),
+                'region' => $this->phoneUtil->getRegionCodeForNumber($number)
+            ];
+        }
+        
+        private function getErrorMessage(NumberParseException $e): string
+        {
+            return match($e->getErrorType()) {
+                NumberParseException::INVALID_COUNTRY_CODE => 
+                    'Invalid country code',
+                NumberParseException::NOT_A_NUMBER => 
+                    'Not a valid phone number format',
+                NumberParseException::TOO_SHORT_AFTER_IDD => 
+                    'Number too short after country code',
+                NumberParseException::TOO_SHORT_NSN => 
+                    'Phone number is too short',
+                NumberParseException::TOO_LONG => 
+                    'Phone number is too long',
+                default => 
+                    'Invalid phone number'
+            };
+        }
+    }
+    
+    // Usage in controller
+    $validator = new PhoneNumberValidator();
+    $result = $validator->validate($_POST['phone'], 'US');
+    
+    if (!$result['valid']) {
+        // Show error to user
+        echo json_encode([
+            'error' => $result['error']
+        ]);
+    } else {
+        // Save to database
+        saveContact($result['e164']);
+    }
+    ```
+  </Tab>
+  
+  <Tab title="API Response">
+    ```php
+    class PhoneNumberController
+    {
+        public function validatePhone(Request $request): JsonResponse
+        {
+            $phoneUtil = PhoneNumberUtil::getInstance();
+            $input = $request->input('phone');
+            $region = $request->input('region', 'US');
+            
+            try {
+                $number = $phoneUtil->parse($input, $region);
+                
+                if (!$phoneUtil->isValidNumber($number)) {
+                    return response()->json([
+                        'valid' => false,
+                        'error' => 'INVALID_NUMBER',
+                        'message' => 'The phone number is not valid'
+                    ], 400);
+                }
+                
+                return response()->json([
+                    'valid' => true,
+                    'data' => [
+                        'e164' => $phoneUtil->format(
+                            $number,
+                            PhoneNumberFormat::E164
+                        ),
+                        'international' => $phoneUtil->format(
+                            $number,
+                            PhoneNumberFormat::INTERNATIONAL
+                        ),
+                        'national' => $phoneUtil->format(
+                            $number,
+                            PhoneNumberFormat::NATIONAL
+                        ),
+                        'region' => $phoneUtil->getRegionCodeForNumber($number),
+                        'type' => $phoneUtil->getNumberType($number)
+                    ]
+                ]);
+                
+            } catch (NumberParseException $e) {
+                $errorCodes = [
+                    NumberParseException::INVALID_COUNTRY_CODE => 'INVALID_COUNTRY_CODE',
+                    NumberParseException::NOT_A_NUMBER => 'NOT_A_NUMBER',
+                    NumberParseException::TOO_SHORT_AFTER_IDD => 'TOO_SHORT_AFTER_IDD',
+                    NumberParseException::TOO_SHORT_NSN => 'TOO_SHORT',
+                    NumberParseException::TOO_LONG => 'TOO_LONG'
+                ];
+                
+                return response()->json([
+                    'valid' => false,
+                    'error' => $errorCodes[$e->getErrorType()] ?? 'PARSE_ERROR',
+                    'message' => $e->getMessage()
+                ], 400);
+            }
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Batch Processing">
+    ```php
+    function processBatch(array $phoneNumbers, string $region): array
+    {
+        $phoneUtil = PhoneNumberUtil::getInstance();
+        $results = [
+            'success' => [],
+            'errors' => []
+        ];
+        
+        foreach ($phoneNumbers as $id => $phoneNumber) {
+            try {
+                $number = $phoneUtil->parse($phoneNumber, $region);
+                
+                if (!$phoneUtil->isValidNumber($number)) {
+                    $results['errors'][$id] = [
+                        'input' => $phoneNumber,
+                        'error' => 'INVALID_NUMBER',
+                        'message' => 'Not a valid phone number'
+                    ];
+                    continue;
+                }
+                
+                $results['success'][$id] = [
+                    'input' => $phoneNumber,
+                    'e164' => $phoneUtil->format(
+                        $number,
+                        PhoneNumberFormat::E164
+                    ),
+                    'region' => $phoneUtil->getRegionCodeForNumber($number)
+                ];
+                
+            } catch (NumberParseException $e) {
+                $results['errors'][$id] = [
+                    'input' => $phoneNumber,
+                    'error' => 'PARSE_ERROR',
+                    'errorType' => $e->getErrorType(),
+                    'message' => $e->getMessage()
+                ];
+            } catch (\Exception $e) {
+                $results['errors'][$id] = [
+                    'input' => $phoneNumber,
+                    'error' => 'UNEXPECTED_ERROR',
+                    'message' => $e->getMessage()
+                ];
+            }
+        }
+        
+        return $results;
+    }
+    
+    // Usage
+    $numbers = [
+        'user1' => '+1 650 253 0000',
+        'user2' => 'invalid',
+        'user3' => '+44 117 496 0123'
+    ];
+    
+    $results = processBatch($numbers, 'US');
+    
+    echo "Processed: " . count($results['success']) . " successful\n";
+    echo "Failed: " . count($results['errors']) . " errors\n";
+    ```
+  </Tab>
+</Tabs>
+
+## Logging Errors
+
+Log errors for debugging and monitoring:
+
+```php
+use Psr\Log\LoggerInterface;
+
+class PhoneNumberService
+{
+    private PhoneNumberUtil $phoneUtil;
+    private LoggerInterface $logger;
+    
+    public function __construct(LoggerInterface $logger)
+    {
+        $this->phoneUtil = PhoneNumberUtil::getInstance();
+        $this->logger = $logger;
+    }
+    
+    public function parseAndValidate(string $input, string $region): ?PhoneNumber
+    {
+        try {
+            $number = $this->phoneUtil->parse($input, $region);
+            
+            if (!$this->phoneUtil->isValidNumber($number)) {
+                $this->logger->warning('Invalid phone number', [
+                    'input' => $input,
+                    'region' => $region
+                ]);
+                return null;
+            }
+            
+            return $number;
+            
+        } catch (NumberParseException $e) {
+            $this->logger->error('Phone number parse error', [
+                'input' => $input,
+                'region' => $region,
+                'errorType' => $e->getErrorType(),
+                'message' => $e->getMessage()
+            ]);
+            return null;
+        } catch (\Exception $e) {
+            $this->logger->critical('Unexpected error parsing phone number', [
+                'input' => $input,
+                'region' => $region,
+                'exception' => $e
+            ]);
+            return null;
+        }
+    }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Use Try-Catch" icon="shield">
+    Never call parse() without a try-catch block in production code
+  </Card>
+  
+  <Card title="Validate After Parsing" icon="check">
+    Successful parsing doesn't guarantee a valid number - always validate
+  </Card>
+  
+  <Card title="Provide Clear Messages" icon="message">
+    Convert error types to user-friendly messages
+  </Card>
+  
+  <Card title="Log Errors" icon="file-lines">
+    Log parsing errors for debugging and monitoring
+  </Card>
+</CardGroup>
+
+## Common Pitfalls
+
+<Warning>
+**Avoid these common mistakes:**
+- Not catching `NumberParseException`
+- Assuming parsing success means valid number
+- Not checking for null/empty input before parsing
+- Ignoring error types and showing generic messages
+- Not logging errors for debugging
+</Warning>
+
+## Testing Error Handling
+
+Test your error handling with invalid inputs:
+
+```php
+use PHPUnit\Framework\TestCase;
+
+class PhoneNumberValidatorTest extends TestCase
+{
+    public function testInvalidCountryCode(): void
+    {
+        $validator = new PhoneNumberValidator();
+        $result = $validator->validate('+9999 123 4567', 'US');
+        
+        $this->assertFalse($result['valid']);
+        $this->assertEquals(
+            NumberParseException::INVALID_COUNTRY_CODE,
+            $result['errorType']
+        );
+    }
+    
+    public function testTooShort(): void
+    {
+        $validator = new PhoneNumberValidator();
+        $result = $validator->validate('123', 'US');
+        
+        $this->assertFalse($result['valid']);
+    }
+    
+    public function testTooLong(): void
+    {
+        $validator = new PhoneNumberValidator();
+        $result = $validator->validate('12345678901234567890', 'US');
+        
+        $this->assertFalse($result['valid']);
+    }
+    
+    public function testValidNumber(): void
+    {
+        $validator = new PhoneNumberValidator();
+        $result = $validator->validate('+1 650 253 0000', 'US');
+        
+        $this->assertTrue($result['valid']);
+        $this->assertEquals('+16502530000', $result['e164']);
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Parsing Numbers" icon="code" href="/guides/parsing-numbers">
+    Learn more about parsing phone numbers
+  </Card>
+  
+  <Card title="Validating Numbers" icon="check-circle" href="/guides/validating-numbers">
+    Complete guide to validation
+  </Card>
+  
+  <Card title="NumberParseException API" icon="book" href="/api/number-parse-exception">
+    Complete API reference for exception handling
+  </Card>
+  
+  <Card title="Best Practices" icon="star" href="/guides/parsing-numbers#best-practices">
+    Review parsing best practices
+  </Card>
+</CardGroup>

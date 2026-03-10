@@ -1,0 +1,213 @@
+---
+title: 'PhoneNumberToCarrierMapper'
+description: 'Identify mobile carrier names for phone numbers'
+---
+
+## Overview
+
+The `PhoneNumberToCarrierMapper` class identifies the mobile carrier (network operator) for a given phone number. This works best for mobile numbers and returns the carrier name in the specified language.
+
+<Note>
+  **Important:** The carrier returned is the **original carrier** the number was allocated to. Due to mobile number portability in many countries, the number may have been moved to a different carrier. See `getSafeDisplayName()` for a method that accounts for this.
+</Note>
+
+## Getting an Instance
+
+The carrier mapper uses a singleton pattern. Get an instance using the static `getInstance()` method:
+
+```php
+$carrierMapper = \libphonenumber\PhoneNumberToCarrierMapper::getInstance();
+```
+
+<ParamField query="mappingNamespace" type="string | null" default="libphonenumber\\carrier\\data\\">
+  Optional namespace for custom carrier mapping data. Only needed for advanced use cases.
+</ParamField>
+
+## Methods
+
+### getNameForNumber()
+
+Returns the carrier name for a phone number in the specified language. Validates that the number is suitable for carrier lookup (mobile, pager, or fixed-line-or-mobile types).
+
+```php
+public function getNameForNumber(
+    PhoneNumber $number,
+    string $languageCode
+): string
+```
+
+<ParamField query="number" type="PhoneNumber" required>
+  The phone number to identify the carrier for.
+</ParamField>
+
+<ParamField query="languageCode" type="string" required>
+  The language code for the carrier name (e.g., "en", "de", "fr"). The method will attempt to return the carrier name in this language if available.
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The carrier name in the requested language, or an empty string if:
+  - The number is not a mobile/pager type
+  - No carrier mapping data is available for this number
+  - The number is invalid
+</ResponseField>
+
+#### Example
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberToCarrierMapper;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+// Swiss mobile number
+$chNumber = $phoneUtil->parse("798765432", "CH");
+
+echo $carrierMapper->getNameForNumber($chNumber, 'en');
+// Output: "Swisscom"
+```
+
+### getNameForValidNumber()
+
+Returns the carrier name without checking if the number type is suitable for carrier lookup. Assumes you've already validated the number.
+
+```php
+public function getNameForValidNumber(
+    PhoneNumber $number,
+    string $languageCode
+): string
+```
+
+<ParamField query="number" type="PhoneNumber" required>
+  A valid phone number assumed to be suitable for carrier mapping.
+</ParamField>
+
+<ParamField query="languageCode" type="string" required>
+  The language code for the carrier name.
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The carrier name, or an empty string if no mapping is found.
+</ResponseField>
+
+<Note>
+  Use this method only if you've already verified the number is a mobile/pager type. For most cases, prefer `getNameForNumber()` which includes validation.
+</Note>
+
+### getSafeDisplayName()
+
+Returns the carrier name only if it's safe to display to users. A carrier name is considered "safe" when:
+- The number is valid
+- The number is a mobile/pager type
+- The country does **not** support mobile number portability
+
+```php
+public function getSafeDisplayName(
+    PhoneNumber $number,
+    string $languageCode
+): string
+```
+
+<ParamField query="number" type="PhoneNumber" required>
+  The phone number to get the carrier for.
+</ParamField>
+
+<ParamField query="languageCode" type="string" required>
+  The language code for the carrier name.
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The carrier name if safe to display, or an empty string if the region supports number portability or no mapping is available.
+</ResponseField>
+
+#### Example
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+$mobileNumber = $phoneUtil->parse("1234567890", "US");
+
+// Returns empty string because US supports mobile number portability
+echo $carrierMapper->getSafeDisplayName($mobileNumber, 'en');
+// Output: ""
+
+// In countries without portability, this would return the carrier name
+$chNumber = $phoneUtil->parse("798765432", "CH");
+echo $carrierMapper->getSafeDisplayName($chNumber, 'en');
+// Output may vary based on Switzerland's portability status
+```
+
+## Complete Example
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberToCarrierMapper;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+try {
+    // Parse a Swiss mobile number
+    $swissNumber = $phoneUtil->parse("798765432", "CH");
+    
+    // Get carrier name
+    $carrier = $carrierMapper->getNameForNumber($swissNumber, "en");
+    
+    if (!empty($carrier)) {
+        echo "Carrier: {$carrier}\n";
+        // Output: "Carrier: Swisscom"
+    } else {
+        echo "Carrier information not available\n";
+    }
+    
+    // Check if safe to display (considers number portability)
+    $safeCarrier = $carrierMapper->getSafeDisplayName($swissNumber, "en");
+    
+    if (!empty($safeCarrier)) {
+        echo "Original carrier (no portability): {$safeCarrier}\n";
+    }
+    
+} catch (\libphonenumber\NumberParseException $e) {
+    echo "Error parsing number: " . $e->getMessage();
+}
+```
+
+## Supported Number Types
+
+Carrier mapping works for these phone number types:
+
+- `PhoneNumberType::MOBILE` - Mobile numbers
+- `PhoneNumberType::FIXED_LINE_OR_MOBILE` - Numbers that could be either fixed-line or mobile
+- `PhoneNumberType::PAGER` - Pager numbers
+
+Other number types (fixed-line, toll-free, etc.) will return an empty string.
+
+## Data Availability
+
+<Note>
+  **Carrier data limitations:**
+  
+  - Carrier information is not available for all countries
+  - Data coverage is best for mobile numbers in major markets
+  - The carrier returned is the **original** allocation and may not reflect the current carrier due to number portability
+  - In regions with mobile number portability, use `getSafeDisplayName()` to avoid showing potentially incorrect information
+</Note>
+
+## Mobile Number Portability
+
+Many countries allow users to keep their phone number when switching carriers. This means:
+
+- The returned carrier name might be outdated
+- `getSafeDisplayName()` returns empty for regions with portability
+- The data shows the **original** carrier allocation, not current ownership
+
+Use this feature for:
+- Historical data analysis
+- Initial carrier identification
+- Regions without number portability
+
+Avoid using for:
+- Critical business logic dependent on current carrier
+- Real-time carrier verification
+- Regions with active mobile number portability

@@ -1,0 +1,192 @@
+---
+title: Framework Integrations
+description: Integrate libphonenumber-for-php into popular PHP frameworks
+---
+
+libphonenumber-for-php can be integrated into various PHP frameworks through third-party packages. These packages provide framework-specific features like validation rules, form helpers, and service providers.
+
+## Available Integrations
+
+<CardGroup cols={3}>
+  <Card title="Symfony" icon="symfony" href="https://github.com/odolbeau/phone-number-bundle">
+    **PhoneNumberBundle**
+    
+    Official Symfony bundle for phone number handling
+  </Card>
+  
+  <Card title="Laravel" icon="laravel" href="https://github.com/Propaganistas/Laravel-Phone">
+    **Laravel Phone**
+    
+    Comprehensive Laravel package with validation rules
+  </Card>
+  
+  <Card title="TYPO3" icon="code" href="https://github.com/simonschaufi/typo3-phone">
+    **TYPO3 Phone Extension**
+    
+    Phone number handling for TYPO3 CMS
+  </Card>
+</CardGroup>
+
+<Warning>
+  These packages are maintained by third parties. While they provide excellent integration capabilities, their quality and maintenance status may vary. Always check the package's documentation and recent activity before integrating.
+</Warning>
+
+## Symfony Integration
+
+The [PhoneNumberBundle](https://github.com/odolbeau/phone-number-bundle) provides Symfony-specific features:
+
+- Doctrine types for phone number entities
+- Form types for phone number inputs
+- Validation constraints
+- Twig filters for formatting
+
+### Installation
+
+```bash
+composer require odolbeau/phone-number-bundle
+```
+
+### Basic Usage
+
+```php
+use Misd\PhoneNumberBundle\Validator\Constraints\PhoneNumber as AssertPhoneNumber;
+
+class Contact
+{
+    #[AssertPhoneNumber]
+    private ?string $phoneNumber = null;
+}
+```
+
+## Laravel Integration
+
+The [Laravel Phone](https://github.com/Propaganistas/Laravel-Phone) package offers:
+
+- Custom validation rules
+- Phone number casting
+- Database storage helpers
+- Country detection
+
+### Installation
+
+```bash
+composer require propaganistas/laravel-phone
+```
+
+### Basic Usage
+
+```php
+use Illuminate\Http\Request;
+
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'phone' => 'required|phone:US,CA',
+    ]);
+}
+```
+
+## TYPO3 Integration
+
+The [TYPO3 Phone Extension](https://github.com/simonschaufi/typo3-phone) provides:
+
+- TCA field types
+- ViewHelpers for formatting
+- Phone number validation
+
+## Custom Framework Integration
+
+If your framework isn't listed above, you can create a custom integration:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberFormat;
+
+class PhoneNumberService
+{
+    private PhoneNumberUtil $phoneUtil;
+    
+    public function __construct()
+    {
+        $this->phoneUtil = PhoneNumberUtil::getInstance();
+    }
+    
+    public function format(string $number, string $region): string
+    {
+        try {
+            $phoneNumber = $this->phoneUtil->parse($number, $region);
+            return $this->phoneUtil->format(
+                $phoneNumber,
+                PhoneNumberFormat::INTERNATIONAL
+            );
+        } catch (\Exception $e) {
+            return $number;
+        }
+    }
+    
+    public function validate(string $number, string $region): bool
+    {
+        try {
+            $phoneNumber = $this->phoneUtil->parse($number, $region);
+            return $this->phoneUtil->isValidNumber($phoneNumber);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+}
+```
+
+<Note>
+  When creating custom integrations, always use the singleton pattern with `getInstance()` to ensure optimal performance. See the [Performance](/advanced/performance) page for more details.
+</Note>
+
+## Dependency Injection
+
+For frameworks that support dependency injection, consider registering PhoneNumberUtil as a service:
+
+```php
+// Example service container registration
+$container->singleton(PhoneNumberUtil::class, function () {
+    return PhoneNumberUtil::getInstance();
+});
+```
+
+This ensures a single instance is shared across your application.
+
+## Testing Considerations
+
+When testing code that uses libphonenumber-for-php:
+
+```php
+use PHPUnit\Framework\TestCase;
+use libphonenumber\PhoneNumberUtil;
+
+class PhoneNumberServiceTest extends TestCase
+{
+    private PhoneNumberUtil $phoneUtil;
+    
+    protected function setUp(): void
+    {
+        $this->phoneUtil = PhoneNumberUtil::getInstance();
+    }
+    
+    public function testValidUsNumber(): void
+    {
+        $number = $this->phoneUtil->parse("+1 650 253 0000", "US");
+        $this->assertTrue($this->phoneUtil->isValidNumber($number));
+    }
+}
+```
+
+## Contributing to Integrations
+
+If you've created or improved a framework integration:
+
+1. Document your implementation thoroughly
+2. Include comprehensive tests
+3. Follow the framework's coding standards
+4. Consider sharing it with the community
+
+<Note>
+  Found a framework integration not listed here? Submit a pull request to add it to the [main repository's README](https://github.com/giggsey/libphonenumber-for-php).
+</Note>

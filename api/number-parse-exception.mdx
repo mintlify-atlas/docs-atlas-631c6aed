@@ -1,0 +1,456 @@
+---
+title: 'NumberParseException'
+description: 'Exception thrown when parsing phone numbers fails'
+---
+
+## Overview
+
+`NumberParseException` is thrown when the library encounters an error while parsing a phone number string. This exception provides detailed information about what went wrong through error types and messages.
+
+## Exception Structure
+
+The exception extends PHP's standard `Exception` class and includes:
+
+- An **error type** (integer constant)
+- A descriptive **error message**
+- Optional **previous exception** for exception chaining
+
+## Error Types
+
+The following error type constants are available:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| **INVALID_COUNTRY_CODE** | 0 | The country code supplied did not belong to a supported country or non-geographical entity |
+| **NOT_A_NUMBER** | 1 | The string is not a valid number. It had less than 3 digits or an invalid phone-context parameter |
+| **TOO_SHORT_AFTER_IDD** | 2 | After stripping the international dialing prefix, the number had fewer digits than any valid phone number |
+| **TOO_SHORT_NSN** | 3 | After stripping the country code, the number had fewer digits than any valid phone number |
+| **TOO_LONG** | 4 | The string had more digits than any valid phone number could have |
+
+## Methods
+
+### getErrorType()
+
+Get the error type code that caused the exception:
+
+```php
+try {
+    $phoneUtil->parse('123', 'US');
+} catch (\libphonenumber\NumberParseException $e) {
+    $errorType = $e->getErrorType();
+    echo $errorType; // 3 (TOO_SHORT_NSN)
+}
+```
+
+<ResponseField name="return" type="int">
+  Returns the error type constant (0-4)
+</ResponseField>
+
+### getMessage()
+
+Get the human-readable error message:
+
+```php
+try {
+    $phoneUtil->parse('invalid', 'US');
+} catch (\libphonenumber\NumberParseException $e) {
+    echo $e->getMessage(); // "The string supplied did not seem to be a phone number"
+}
+```
+
+<ResponseField name="return" type="string">
+  Returns a descriptive error message
+</ResponseField>
+
+## Usage Examples
+
+### Basic Exception Handling
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\NumberParseException;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+try {
+    $number = $phoneUtil->parse($userInput, 'US');
+    echo "Successfully parsed: " . $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+    );
+} catch (NumberParseException $e) {
+    echo "Failed to parse phone number: " . $e->getMessage();
+    error_log("Parse error type: " . $e->getErrorType());
+}
+```
+
+### Handling Specific Error Types
+
+<CodeGroup>
+```php Match Expression (PHP 8+)
+use libphonenumber\NumberParseException;
+
+try {
+    $number = $phoneUtil->parse($input, $region);
+} catch (NumberParseException $e) {
+    $message = match ($e->getErrorType()) {
+        NumberParseException::INVALID_COUNTRY_CODE => 
+            "Invalid country code. Please check the country.",
+        NumberParseException::NOT_A_NUMBER => 
+            "This doesn't look like a phone number.",
+        NumberParseException::TOO_SHORT_AFTER_IDD => 
+            "Number too short after international prefix.",
+        NumberParseException::TOO_SHORT_NSN => 
+            "Phone number is too short.",
+        NumberParseException::TOO_LONG => 
+            "Phone number is too long.",
+        default => 
+            "Invalid phone number: " . $e->getMessage(),
+    };
+    
+    echo $message;
+}
+```
+
+```php Switch Statement
+use libphonenumber\NumberParseException;
+
+try {
+    $number = $phoneUtil->parse($input, $region);
+} catch (NumberParseException $e) {
+    switch ($e->getErrorType()) {
+        case NumberParseException::INVALID_COUNTRY_CODE:
+            $message = "Invalid country code";
+            break;
+        case NumberParseException::NOT_A_NUMBER:
+            $message = "Not a valid phone number format";
+            break;
+        case NumberParseException::TOO_SHORT_AFTER_IDD:
+        case NumberParseException::TOO_SHORT_NSN:
+            $message = "Phone number is too short";
+            break;
+        case NumberParseException::TOO_LONG:
+            $message = "Phone number is too long";
+            break;
+        default:
+            $message = "Parse error: " . $e->getMessage();
+    }
+    
+    throw new InvalidArgumentException($message, 0, $e);
+}
+```
+</CodeGroup>
+
+### User-Friendly Error Messages
+
+```php
+function parsePhoneWithFriendlyErrors(
+    string $phoneNumber,
+    string $region
+): array {
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    try {
+        $number = $phoneUtil->parse($phoneNumber, $region);
+        
+        return [
+            'success' => true,
+            'number' => $number,
+            'formatted' => $phoneUtil->format(
+                $number,
+                \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+            ),
+        ];
+        
+    } catch (\libphonenumber\NumberParseException $e) {
+        return [
+            'success' => false,
+            'error' => match ($e->getErrorType()) {
+                \libphonenumber\NumberParseException::INVALID_COUNTRY_CODE => [
+                    'code' => 'invalid_country',
+                    'message' => 'The country code you entered is not recognized.',
+                    'hint' => 'Please check the country code (e.g., +1 for US, +44 for UK).',
+                ],
+                \libphonenumber\NumberParseException::NOT_A_NUMBER => [
+                    'code' => 'not_a_number',
+                    'message' => 'This doesn\'t appear to be a valid phone number.',
+                    'hint' => 'Phone numbers should contain at least 3 digits.',
+                ],
+                \libphonenumber\NumberParseException::TOO_SHORT_AFTER_IDD => [
+                    'code' => 'too_short_idd',
+                    'message' => 'The phone number is too short.',
+                    'hint' => 'After the international prefix, more digits are needed.',
+                ],
+                \libphonenumber\NumberParseException::TOO_SHORT_NSN => [
+                    'code' => 'too_short',
+                    'message' => "Phone number is too short for {$region}.",
+                    'hint' => 'Please enter the complete phone number including area code.',
+                ],
+                \libphonenumber\NumberParseException::TOO_LONG => [
+                    'code' => 'too_long',
+                    'message' => "Phone number is too long for {$region}.",
+                    'hint' => 'Please check for extra digits.',
+                ],
+                default => [
+                    'code' => 'unknown',
+                    'message' => 'Failed to parse phone number.',
+                    'hint' => $e->getMessage(),
+                ],
+            },
+        ];
+    }
+}
+
+// Usage
+$result = parsePhoneWithFriendlyErrors($_POST['phone'], 'US');
+
+if (!$result['success']) {
+    echo "<div class='error'>";
+    echo "<strong>" . $result['error']['message'] . "</strong><br>";
+    echo $result['error']['hint'];
+    echo "</div>";
+}
+```
+
+### Form Validation
+
+```php
+class PhoneNumberFormValidator
+{
+    private array $errors = [];
+    
+    public function validatePhoneNumber(string $input, string $region): bool
+    {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        
+        // Clear previous errors
+        $this->errors = [];
+        
+        // Check if empty
+        if (trim($input) === '') {
+            $this->errors[] = 'Phone number is required';
+            return false;
+        }
+        
+        try {
+            $number = $phoneUtil->parse($input, $region);
+            
+            // Additional validation: check if valid
+            if (!$phoneUtil->isValidNumber($number)) {
+                $this->errors[] = 'This phone number is not valid for ' . $region;
+                return false;
+            }
+            
+            return true;
+            
+        } catch (\libphonenumber\NumberParseException $e) {
+            $this->errors[] = $this->getErrorMessage($e, $region);
+            return false;
+        }
+    }
+    
+    private function getErrorMessage(
+        \libphonenumber\NumberParseException $e,
+        string $region
+    ): string {
+        return match ($e->getErrorType()) {
+            \libphonenumber\NumberParseException::INVALID_COUNTRY_CODE =>
+                'Invalid country code',
+            \libphonenumber\NumberParseException::NOT_A_NUMBER =>
+                'Please enter a valid phone number',
+            \libphonenumber\NumberParseException::TOO_SHORT_NSN =>
+                "Phone number is too short for {$region}",
+            \libphonenumber\NumberParseException::TOO_LONG =>
+                "Phone number is too long for {$region}",
+            default =>
+                'Invalid phone number format',
+        };
+    }
+    
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+}
+
+// Usage in a form handler
+$validator = new PhoneNumberFormValidator();
+
+if ($validator->validatePhoneNumber($_POST['phone'], 'US')) {
+    // Process the valid phone number
+    echo "Phone number is valid!";
+} else {
+    // Display errors
+    foreach ($validator->getErrors() as $error) {
+        echo "<p class='error'>{$error}</p>";
+    }
+}
+```
+
+### Logging Parse Errors
+
+```php
+function parseAndLog(string $input, string $region): ?\libphonenumber\PhoneNumber
+{
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    try {
+        return $phoneUtil->parse($input, $region);
+    } catch (\libphonenumber\NumberParseException $e) {
+        // Log the error with context
+        error_log(sprintf(
+            "Phone number parse failed - Input: %s, Region: %s, Error Type: %d, Message: %s",
+            $input,
+            $region,
+            $e->getErrorType(),
+            $e->getMessage()
+        ));
+        
+        return null;
+    }
+}
+```
+
+### API Response with Error Details
+
+```php
+header('Content-Type: application/json');
+
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$input = $_POST['phone'] ?? '';
+$region = $_POST['region'] ?? 'US';
+
+try {
+    $number = $phoneUtil->parse($input, $region);
+    
+    if (!$phoneUtil->isValidNumber($number)) {
+        echo json_encode([
+            'success' => false,
+            'error' => [
+                'code' => 'invalid_number',
+                'message' => 'Phone number is not valid',
+            ],
+        ]);
+        exit;
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'data' => [
+            'formatted' => $phoneUtil->format(
+                $number,
+                \libphonenumber\PhoneNumberFormat::E164
+            ),
+            'country' => $number->getCountryCode(),
+            'national' => $number->getNationalNumber(),
+        ],
+    ]);
+    
+} catch (\libphonenumber\NumberParseException $e) {
+    $errorCode = match ($e->getErrorType()) {
+        \libphonenumber\NumberParseException::INVALID_COUNTRY_CODE => 'invalid_country_code',
+        \libphonenumber\NumberParseException::NOT_A_NUMBER => 'not_a_number',
+        \libphonenumber\NumberParseException::TOO_SHORT_AFTER_IDD => 'too_short_after_idd',
+        \libphonenumber\NumberParseException::TOO_SHORT_NSN => 'too_short',
+        \libphonenumber\NumberParseException::TOO_LONG => 'too_long',
+        default => 'parse_error',
+    };
+    
+    echo json_encode([
+        'success' => false,
+        'error' => [
+            'code' => $errorCode,
+            'message' => $e->getMessage(),
+            'type' => $e->getErrorType(),
+        ],
+    ]);
+}
+```
+
+## Common Scenarios
+
+### Invalid Country Code
+
+```php
+try {
+    // Country code 999 doesn't exist
+    $number = $phoneUtil->parse('+999 1234567', 'ZZ');
+} catch (\libphonenumber\NumberParseException $e) {
+    // Error type: INVALID_COUNTRY_CODE (0)
+    echo $e->getMessage(); // "Invalid country calling code"
+}
+```
+
+### Not a Valid Number Format
+
+```php
+try {
+    // Less than 3 digits
+    $number = $phoneUtil->parse('12', 'US');
+} catch (\libphonenumber\NumberParseException $e) {
+    // Error type: NOT_A_NUMBER (1)
+    echo $e->getMessage(); // "The string supplied did not seem to be a phone number"
+}
+```
+
+### Too Short After IDD
+
+```php
+try {
+    // International prefix but incomplete number
+    $number = $phoneUtil->parse('+1 2', 'US');
+} catch (\libphonenumber\NumberParseException $e) {
+    // Error type: TOO_SHORT_AFTER_IDD (2)
+    echo $e->getMessage(); // "Phone number too short after IDD"
+}
+```
+
+### Too Short NSN
+
+```php
+try {
+    // Valid country code but national number too short
+    $number = $phoneUtil->parse('123', 'US');
+} catch (\libphonenumber\NumberParseException $e) {
+    // Error type: TOO_SHORT_NSN (3)
+    echo $e->getMessage(); // "The string supplied is too short to be a phone number"
+}
+```
+
+### Too Long
+
+```php
+try {
+    // Way too many digits
+    $number = $phoneUtil->parse('12345678901234567890', 'US');
+} catch (\libphonenumber\NumberParseException $e) {
+    // Error type: TOO_LONG (4)
+    echo $e->getMessage(); // "The string supplied is too long to be a phone number"
+}
+```
+
+## Best Practices
+
+<Warning>
+  **Always** catch `NumberParseException` when parsing user input:
+  
+  - Never assume user input is well-formatted
+  - Provide clear, actionable error messages to users
+  - Log parse errors for debugging and monitoring
+  - Consider the user's context when displaying error messages
+</Warning>
+
+### Error Handling Checklist
+
+- ✅ Wrap `parse()` calls in try-catch blocks
+- ✅ Check the error type for specific handling
+- ✅ Provide user-friendly error messages
+- ✅ Log errors with sufficient context
+- ✅ Validate numbers even after successful parsing
+- ✅ Don't expose raw exception messages to end users
+
+## See Also
+
+- [PhoneNumberUtil](/api/phone-number-util) - Methods that throw this exception
+- [ValidationResult](/api/validation-result) - For validation errors (different from parse errors)
+- [Error Handling Guide](/guides/error-handling) - Complete guide to handling errors

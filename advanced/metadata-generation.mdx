@@ -1,0 +1,226 @@
+---
+title: Metadata Generation
+description: Understanding and regenerating phone number metadata from Google's libphonenumber
+---
+
+<Warning>
+  Metadata generation is typically only needed by library maintainers. As an end-user, you rarely need to regenerate metadata yourself, as the library is kept up-to-date with the latest data from Google.
+</Warning>
+
+## What is Metadata?
+
+The metadata in libphonenumber-for-php contains all the rules, patterns, and information needed to:
+
+- Parse phone numbers from different countries
+- Validate phone numbers according to regional rules
+- Format phone numbers in various styles
+- Determine phone number types (mobile, fixed-line, etc.)
+
+This data is sourced from Google's [libphonenumber project](https://github.com/google/libphonenumber), which aggregates information from telecommunications authorities worldwide.
+
+## When to Regenerate Metadata
+
+You typically **do not** need to regenerate metadata yourself. The library maintainers update it regularly.
+
+You might need to regenerate metadata if:
+
+- You're contributing to the library itself
+- You need to test unreleased metadata changes from Google
+- You're creating a fork with custom modifications
+- You want to use a specific version of Google's libphonenumber data
+
+<Note>
+  The repository always includes up-to-date metadata. Unless you're developing the library itself, you can skip the metadata generation process entirely.
+</Note>
+
+## Metadata Version
+
+The current metadata version is tracked in the `METADATA-VERSION.php` file:
+
+```php METADATA-VERSION.php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * This file specifies the revision of the metadata to build from.
+ * It can be a commit, branch or tag of the https://github.com/google/libphonenumber project
+ * @internal
+ */
+return 'v9.0.25';
+```
+
+This file specifies which version of Google's libphonenumber project the metadata is built from. It can reference:
+
+- A specific tag (e.g., `v9.0.25`)
+- A commit hash
+- A branch name
+
+## Build Process
+
+The build process clones Google's libphonenumber repository at the specified version and generates PHP classes from the XML metadata files.
+
+### Running the Build
+
+To regenerate metadata, use the Composer build command:
+
+```bash
+composer run build
+```
+
+This command runs a complete build process that:
+
+1. Generates metadata from Google's libphonenumber
+2. Applies code style fixes
+3. Runs the test suite
+4. Executes static analysis
+
+### Metadata Only
+
+If you only want to regenerate metadata without running tests:
+
+```bash
+composer run metadata
+```
+
+This executes the build script:
+
+```bash
+php build/build.php build
+```
+
+## Build Requirements
+
+To run the build process, you need:
+
+- PHP 8.1 or higher
+- Composer with dev dependencies installed
+- Git (to clone the libphonenumber repository)
+- ext-dom PHP extension
+
+### Installing Dev Dependencies
+
+```bash
+composer install --dev
+```
+
+<Warning>
+  The build process downloads and processes large amounts of data. Ensure you have:
+  - A stable internet connection
+  - Sufficient disk space (at least 500MB free)
+  - Adequate memory (2GB+ recommended)
+</Warning>
+
+## Generated Files
+
+The metadata generation process creates PHP classes in the `src/data/` directory:
+
+```
+src/data/
+├── PhoneNumberMetadata_AC.php
+├── PhoneNumberMetadata_AD.php
+├── PhoneNumberMetadata_AE.php
+├── PhoneNumberMetadata_AF.php
+├── ...
+└── PhoneNumberMetadata_ZW.php
+```
+
+Each file contains a `PhoneMetadata` class with region-specific rules and patterns.
+
+### Metadata Structure
+
+```php
+namespace libphonenumber\data;
+
+use libphonenumber\PhoneMetadata;
+use libphonenumber\PhoneNumberDesc;
+
+class PhoneNumberMetadata_US extends PhoneMetadata
+{
+    // Contains patterns, rules, and formatting information
+    // for United States phone numbers
+}
+```
+
+## Metadata Loading
+
+The library uses `MultiFileMetadataSourceImpl` to load metadata on-demand:
+
+```php
+// Metadata is loaded only when needed for a specific region
+$phoneUtil = PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse("+1 650 253 0000", "US");
+// US metadata is loaded here, not during getInstance()
+```
+
+See the [Performance](/advanced/performance) page for details on metadata loading optimization.
+
+## Customizing Metadata Version
+
+To build against a different version of Google's libphonenumber:
+
+1. Edit `METADATA-VERSION.php`:
+
+```php
+// Use a different tag
+return 'v9.0.26';
+
+// Or a specific commit
+return 'abc123def456';
+
+// Or a branch
+return 'master';
+```
+
+2. Run the build:
+
+```bash
+composer run metadata
+```
+
+<Note>
+  Always test thoroughly after changing the metadata version. New versions may include breaking changes or behavioral differences.
+</Note>
+
+## Troubleshooting
+
+### Build Fails to Clone Repository
+
+Ensure Git is installed and you have network access:
+
+```bash
+git --version
+```
+
+### Out of Memory Errors
+
+Increase PHP memory limit:
+
+```bash
+php -d memory_limit=2G build/build.php build
+```
+
+### Permission Errors
+
+Ensure write permissions for the `src/data/` directory:
+
+```bash
+chmod -R 755 src/data/
+```
+
+## Contributing Metadata Changes
+
+If you discover incorrect metadata:
+
+1. **Do not** modify the generated PHP files directly
+2. Report the issue to [Google's libphonenumber project](https://github.com/google/libphonenumber/issues)
+3. Once fixed upstream, it will be included in the next release
+
+<Warning>
+  Manual changes to generated metadata files will be overwritten on the next build. All metadata corrections must be made in Google's upstream project.
+</Warning>
+
+## Related Topics
+
+- [Performance](/advanced/performance) - Understanding metadata loading and caching
+- [Lite Version](/advanced/lite-version) - Using the lightweight version with reduced metadata

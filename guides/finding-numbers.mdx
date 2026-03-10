@@ -1,0 +1,559 @@
+---
+title: Finding Phone Numbers in Text
+description: Learn how to extract phone numbers from text content using PhoneNumberMatcher
+---
+
+# Finding Phone Numbers in Text
+
+The `PhoneNumberMatcher` class finds and extracts phone numbers from text strings. This is useful for processing user-generated content, parsing documents, or extracting contact information.
+
+## Getting Started
+
+<Steps>
+  <Step title="Get PhoneNumberUtil Instance">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    ```
+  </Step>
+  
+  <Step title="Create PhoneNumberMatcher">
+    ```php
+    $text = "Hi, can you ring me at 1430 on 0117 496 0123. Thanks!";
+    $matcher = $phoneUtil->findNumbers($text, 'GB');
+    ```
+  </Step>
+  
+  <Step title="Iterate Through Matches">
+    ```php
+    foreach ($matcher as $match) {
+        $number = $match->number();
+        $rawText = $match->rawString();
+        
+        echo "Found: $rawText\n";
+        // Found: 0117 496 0123
+    }
+    ```
+  </Step>
+</Steps>
+
+## Basic Usage
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+$text = "Hi, can you ring me at 1430 on 0117 496 0123. Thanks!";
+
+// Find all numbers in the text for GB region
+$matcher = $phoneUtil->findNumbers($text, 'GB');
+
+foreach ($matcher as $phoneNumberMatch) {
+    $number = $phoneNumberMatch->number();
+    
+    // Display formatted number
+    echo $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+    );
+    // Output: +44 117 496 0123
+    
+    // Get the raw text that was matched
+    echo $phoneNumberMatch->rawString();
+    // Output: 0117 496 0123
+    
+    // Get the position in the text
+    echo "Found at position: " . $phoneNumberMatch->start();
+    // Output: Found at position: 30
+}
+```
+
+## Understanding Leniency Levels
+
+The `Leniency` parameter controls how strict the matching should be:
+
+<Tabs>
+  <Tab title="POSSIBLE">
+    **Most permissive** - Matches anything that could possibly be a phone number:
+    
+    ```php
+    use libphonenumber\Leniency\Possible;
+    
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    $text = "Call 1234567890 or 123-456-7890";
+    $matcher = $phoneUtil->findNumbers(
+        $text,
+        'US',
+        Possible::getInstance(),
+        PHP_INT_MAX
+    );
+    
+    // Will match both numbers even without proper formatting
+    foreach ($matcher as $match) {
+        echo $match->rawString() . "\n";
+    }
+    ```
+    
+    <Note>Use when you want to catch all potential phone numbers, even if they might be false positives.</Note>
+  </Tab>
+  
+  <Tab title="VALID (Default)">
+    **Recommended** - Matches only valid phone numbers:
+    
+    ```php
+    use libphonenumber\Leniency\Valid;
+    
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    $text = "Call +1 (650) 253-0000 for support";
+    $matcher = $phoneUtil->findNumbers(
+        $text,
+        'US',
+        Valid::getInstance(),
+        PHP_INT_MAX
+    );
+    
+    // Matches only if the number is valid
+    foreach ($matcher as $match) {
+        echo $match->rawString(); // +1 (650) 253-0000
+    }
+    ```
+    
+    <Tip>This is the default and works well for most use cases.</Tip>
+  </Tab>
+  
+  <Tab title="STRICT_GROUPING">
+    **Stricter** - Validates digit grouping:
+    
+    ```php
+    use libphonenumber\Leniency\StrictGrouping;
+    
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    $text = "Valid: (650) 253-0000, Invalid: (65) 025-30000";
+    $matcher = $phoneUtil->findNumbers(
+        $text,
+        'US',
+        StrictGrouping::getInstance(),
+        PHP_INT_MAX
+    );
+    
+    // Only matches numbers with proper grouping
+    // Won't match the second number
+    ```
+  </Tab>
+  
+  <Tab title="EXACT_GROUPING">
+    **Strictest** - Requires exact formatting:
+    
+    ```php
+    use libphonenumber\Leniency\ExactGrouping;
+    
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    $text = "Call (650) 253-0000 exactly as formatted";
+    $matcher = $phoneUtil->findNumbers(
+        $text,
+        'US',
+        ExactGrouping::getInstance(),
+        PHP_INT_MAX
+    );
+    
+    // Most strict matching - perfect formatting required
+    ```
+    
+    <Warning>May miss valid numbers if they're not formatted exactly right.</Warning>
+  </Tab>
+</Tabs>
+
+## PhoneNumberMatch Object
+
+Each match provides several useful methods:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$text = "Contact: +44 117 496 0123 (office)";
+$matcher = $phoneUtil->findNumbers($text, 'GB');
+
+foreach ($matcher as $match) {
+    // Get the PhoneNumber object
+    $number = $match->number();
+    echo $phoneUtil->format(
+        $number,
+        \libphonenumber\PhoneNumberFormat::E164
+    );
+    // Output: +441174960123
+    
+    // Get the raw matched text
+    echo $match->rawString();
+    // Output: +44 117 496 0123
+    
+    // Get start position (0-indexed)
+    echo $match->start();
+    // Output: 9
+    
+    // Get end position
+    echo $match->end();
+    // Output: 26
+    
+    // Extract from original text
+    $extracted = substr($text, $match->start(), $match->end() - $match->start());
+    echo $extracted;
+    // Output: +44 117 496 0123
+}
+```
+
+## Practical Examples
+
+<Tabs>
+  <Tab title="Email Processing">
+    ```php
+    function extractContactInfo(string $emailBody, string $defaultRegion): array
+    {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $matcher = $phoneUtil->findNumbers($emailBody, $defaultRegion);
+        
+        $contacts = [];
+        
+        foreach ($matcher as $match) {
+            $number = $match->number();
+            
+            if ($phoneUtil->isValidNumber($number)) {
+                $contacts[] = [
+                    'original' => $match->rawString(),
+                    'e164' => $phoneUtil->format(
+                        $number,
+                        \libphonenumber\PhoneNumberFormat::E164
+                    ),
+                    'international' => $phoneUtil->format(
+                        $number,
+                        \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+                    ),
+                    'position' => $match->start(),
+                    'region' => $phoneUtil->getRegionCodeForNumber($number)
+                ];
+            }
+        }
+        
+        return $contacts;
+    }
+    
+    // Usage
+    $email = "Please call me at +1 (650) 253-0000 or +44 117 496 0123.";
+    $contacts = extractContactInfo($email, 'US');
+    
+    foreach ($contacts as $contact) {
+        echo "Found: {$contact['international']} from {$contact['region']}\n";
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Text Linkification">
+    ```php
+    function linkifyPhoneNumbers(string $text, string $region): string
+    {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $matcher = $phoneUtil->findNumbers($text, $region);
+        
+        $matches = [];
+        foreach ($matcher as $match) {
+            $matches[] = $match;
+        }
+        
+        // Process matches in reverse order to maintain positions
+        usort($matches, fn($a, $b) => $b->start() <=> $a->start());
+        
+        foreach ($matches as $match) {
+            $number = $match->number();
+            
+            if (!$phoneUtil->isValidNumber($number)) {
+                continue;
+            }
+            
+            // Create tel: link
+            $tel = $phoneUtil->format(
+                $number,
+                \libphonenumber\PhoneNumberFormat::RFC3966
+            );
+            
+            // Create display text
+            $display = $phoneUtil->format(
+                $number,
+                \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+            );
+            
+            $link = sprintf(
+                '<a href="%s">%s</a>',
+                htmlspecialchars($tel),
+                htmlspecialchars($display)
+            );
+            
+            // Replace in text
+            $text = substr_replace(
+                $text,
+                $link,
+                $match->start(),
+                $match->end() - $match->start()
+            );
+        }
+        
+        return $text;
+    }
+    
+    // Usage
+    $text = "Call us at 0117 496 0123 or +41 44 668 18 00 for support.";
+    $html = linkifyPhoneNumbers($text, 'GB');
+    echo $html;
+    // Output: Call us at <a href="tel:+44-117-496-0123">+44 117 496 0123</a> or...
+    ```
+  </Tab>
+  
+  <Tab title="Data Mining">
+    ```php
+    class PhoneNumberExtractor
+    {
+        private PhoneNumberUtil $phoneUtil;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+        }
+        
+        public function extractFromDocument(
+            string $document,
+            string $defaultRegion
+        ): array {
+            $matcher = $this->phoneUtil->findNumbers($document, $defaultRegion);
+            
+            $results = [
+                'numbers' => [],
+                'unique' => [],
+                'byRegion' => [],
+                'invalid' => []
+            ];
+            
+            foreach ($matcher as $match) {
+                $number = $match->number();
+                $raw = $match->rawString();
+                
+                if (!$this->phoneUtil->isValidNumber($number)) {
+                    $results['invalid'][] = $raw;
+                    continue;
+                }
+                
+                $e164 = $this->phoneUtil->format(
+                    $number,
+                    \libphonenumber\PhoneNumberFormat::E164
+                );
+                
+                $region = $this->phoneUtil->getRegionCodeForNumber($number);
+                
+                $results['numbers'][] = [
+                    'original' => $raw,
+                    'e164' => $e164,
+                    'region' => $region,
+                    'type' => $this->phoneUtil->getNumberType($number),
+                    'position' => $match->start()
+                ];
+                
+                // Track unique numbers
+                if (!in_array($e164, $results['unique'], true)) {
+                    $results['unique'][] = $e164;
+                }
+                
+                // Group by region
+                if (!isset($results['byRegion'][$region])) {
+                    $results['byRegion'][$region] = [];
+                }
+                if (!in_array($e164, $results['byRegion'][$region], true)) {
+                    $results['byRegion'][$region][] = $e164;
+                }
+            }
+            
+            return $results;
+        }
+    }
+    
+    // Usage
+    $extractor = new PhoneNumberExtractor();
+    $document = file_get_contents('contacts.txt');
+    $results = $extractor->extractFromDocument($document, 'US');
+    
+    echo "Found {$results['numbers']} total mentions\n";
+    echo "Unique numbers: " . count($results['unique']) . "\n";
+    echo "Regions: " . implode(', ', array_keys($results['byRegion'])) . "\n";
+    ```
+  </Tab>
+</Tabs>
+
+## Controlling Max Tries
+
+Limit the number of attempts to find numbers:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Find at most 5 numbers
+$matcher = $phoneUtil->findNumbers(
+    $text,
+    'US',
+    \libphonenumber\Leniency\Valid::getInstance(),
+    5  // maxTries
+);
+
+foreach ($matcher as $match) {
+    // Process up to 5 matches
+}
+```
+
+<Tip>
+Set `maxTries` to prevent excessive processing on very long documents.
+</Tip>
+
+## Handling Ambiguous Cases
+
+Some text patterns may be ambiguous:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Could be a phone number or a time
+$text = "Meet at 1430 or call 0117 496 0123";
+
+$matcher = $phoneUtil->findNumbers($text, 'GB');
+
+foreach ($matcher as $match) {
+    $raw = $match->rawString();
+    
+    // "1430" might be matched as a phone number
+    // Validate the match
+    $number = $match->number();
+    if ($phoneUtil->isValidNumber($number)) {
+        echo "Valid: $raw\n";
+    } else {
+        echo "Possibly not a phone number: $raw\n";
+    }
+}
+```
+
+<Note>
+Always validate matched numbers, especially with more lenient matching modes.
+</Note>
+
+## Performance Considerations
+
+<AccordionGroup>
+  <Accordion title="Process Large Documents Efficiently">
+    ```php
+    // For very large documents, process in chunks
+    function extractPhoneNumbers(
+        string $largeText,
+        string $region,
+        int $chunkSize = 10000
+    ): array {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $allNumbers = [];
+        $chunks = str_split($largeText, $chunkSize);
+        
+        foreach ($chunks as $chunk) {
+            $matcher = $phoneUtil->findNumbers($chunk, $region);
+            
+            foreach ($matcher as $match) {
+                $number = $match->number();
+                if ($phoneUtil->isValidNumber($number)) {
+                    $e164 = $phoneUtil->format(
+                        $number,
+                        \libphonenumber\PhoneNumberFormat::E164
+                    );
+                    $allNumbers[$e164] = true; // Use as set
+                }
+            }
+        }
+        
+        return array_keys($allNumbers);
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Cache PhoneNumberUtil Instance">
+    ```php
+    // Reuse the singleton instance
+    class PhoneNumberService
+    {
+        private static ?PhoneNumberUtil $phoneUtil = null;
+        
+        public static function findNumbers(
+            string $text,
+            string $region
+        ): iterable {
+            if (self::$phoneUtil === null) {
+                self::$phoneUtil = PhoneNumberUtil::getInstance();
+            }
+            
+            return self::$phoneUtil->findNumbers($text, $region);
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Appropriate Leniency" icon="sliders">
+    Start with VALID leniency and adjust based on your false positive/negative tolerance
+  </Card>
+  
+  <Card title="Always Validate" icon="check">
+    Even with strict leniency, validate matched numbers before using them
+  </Card>
+  
+  <Card title="Set Max Tries" icon="gauge">
+    Limit matching attempts on large documents to prevent performance issues
+  </Card>
+  
+  <Card title="Handle Duplicates" icon="copy">
+    Use E164 format to identify and deduplicate matched numbers
+  </Card>
+</CardGroup>
+
+## Common Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Contact Extraction" icon="address-book">
+    Extract phone numbers from emails, documents, and web pages
+  </Card>
+  
+  <Card title="Click-to-Call" icon="phone">
+    Automatically linkify phone numbers in web content
+  </Card>
+  
+  <Card title="Data Mining" icon="database">
+    Extract contact information from large document collections
+  </Card>
+  
+  <Card title="Content Analysis" icon="chart-line">
+    Analyze distribution of phone numbers by region or type
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Parsing Numbers" icon="code" href="/guides/parsing-numbers">
+    Learn more about parsing phone numbers
+  </Card>
+  
+  <Card title="Validating Numbers" icon="check-circle" href="/guides/validating-numbers">
+    Validate extracted phone numbers
+  </Card>
+  
+  <Card title="PhoneNumberMatcher API" icon="book" href="/api/phone-number-matcher">
+    Complete API reference for phone number matching
+  </Card>
+  
+  <Card title="Leniency Levels" icon="list" href="/api/phone-number-matcher#leniency-levels">
+    Detailed explanation of leniency options
+  </Card>
+</CardGroup>

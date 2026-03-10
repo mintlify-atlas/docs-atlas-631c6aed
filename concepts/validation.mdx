@@ -1,0 +1,614 @@
+---
+title: "Validation"
+description: "Understanding phone number validation: possible vs valid numbers"
+---
+
+## Validation Fundamentals
+
+Phone number validation in libphonenumber for PHP operates on two levels:
+
+1. **Possible numbers** - Numbers that could theoretically exist based on length
+2. **Valid numbers** - Numbers that match known patterns for a region
+
+<Warning>
+  The library validates number **patterns only**. It cannot verify if a number is currently in service, assigned, or reachable.
+</Warning>
+
+## Possible vs Valid Numbers
+
+Understanding the difference between "possible" and "valid" is crucial:
+
+<Tabs>
+  <Tab title="Possible">
+    A **possible number** has the right length for its region:
+    
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $number = $phoneUtil->parse('2345678901', 'US');
+    
+    if ($phoneUtil->isPossibleNumber($number)) {
+        echo "This number has a valid length";
+    }
+    ```
+    
+    Checks:
+    - Country code is valid
+    - Number length is within acceptable range
+    - No detailed pattern matching
+  </Tab>
+  <Tab title="Valid">
+    A **valid number** matches known patterns:
+    
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $number = $phoneUtil->parse('650-253-0000', 'US');
+    
+    if ($phoneUtil->isValidNumber($number)) {
+        echo "This number matches known US patterns";
+    }
+    ```
+    
+    Checks:
+    - All "possible" checks
+    - Area code patterns
+    - Number type patterns
+    - Regional rules
+  </Tab>
+</Tabs>
+
+### Visual Comparison
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Example 1: Valid number (both possible and valid)
+$validNumber = $phoneUtil->parse('650-253-0000', 'US');
+var_dump($phoneUtil->isPossibleNumber($validNumber));  // true
+var_dump($phoneUtil->isValidNumber($validNumber));     // true
+
+// Example 2: Possible but not valid
+$possibleOnly = $phoneUtil->parse('2000000000', 'US');
+var_dump($phoneUtil->isPossibleNumber($possibleOnly)); // true (right length)
+var_dump($phoneUtil->isValidNumber($possibleOnly));    // false (invalid pattern)
+
+// Example 3: Neither possible nor valid
+$tooShort = $phoneUtil->parse('123', 'US');
+var_dump($phoneUtil->isPossibleNumber($tooShort));     // false
+var_dump($phoneUtil->isValidNumber($tooShort));        // false
+```
+
+## Validation Result Constants
+
+The `ValidationResult` enum provides detailed information about why a number might not be possible:
+
+```php
+enum ValidationResult: int
+{
+    case IS_POSSIBLE = 0;
+    case INVALID_COUNTRY_CODE = 1;
+    case TOO_SHORT = 2;
+    case TOO_LONG = 3;
+    case IS_POSSIBLE_LOCAL_ONLY = 4;
+    case INVALID_LENGTH = 5;
+}
+```
+
+### Result Descriptions
+
+<Accordion title="IS_POSSIBLE">
+  **Value: 0**
+  
+  The number length matches valid numbers for this region.
+  
+  ```php
+  $result = $phoneUtil->isPossibleNumberWithReason($number);
+  if ($result === \libphonenumber\ValidationResult::IS_POSSIBLE) {
+      echo "Number has correct length";
+  }
+  ```
+</Accordion>
+
+<Accordion title="INVALID_COUNTRY_CODE">
+  **Value: 1**
+  
+  The country calling code is not recognized.
+  
+  ```php
+  // +999 is not a valid country code
+  try {
+      $number = $phoneUtil->parse('+999 1234567890', null);
+      $result = $phoneUtil->isPossibleNumberWithReason($number);
+  } catch (\libphonenumber\NumberParseException $e) {
+      echo "Invalid country code";
+  }
+  ```
+</Accordion>
+
+<Accordion title="TOO_SHORT">
+  **Value: 2**
+  
+  The number is shorter than all valid numbers for this region.
+  
+  ```php
+  $number = $phoneUtil->parse('123', 'US');
+  $result = $phoneUtil->isPossibleNumberWithReason($number);
+  
+  if ($result === \libphonenumber\ValidationResult::TOO_SHORT) {
+      echo "Number is too short for US";
+  }
+  ```
+</Accordion>
+
+<Accordion title="TOO_LONG">
+  **Value: 3**
+  
+  The number is longer than all valid numbers for this region.
+  
+  ```php
+  $number = $phoneUtil->parse('12345678901234567890', 'US');
+  $result = $phoneUtil->isPossibleNumberWithReason($number);
+  
+  if ($result === \libphonenumber\ValidationResult::TOO_LONG) {
+      echo "Number is too long for US";
+  }
+  ```
+</Accordion>
+
+<Accordion title="IS_POSSIBLE_LOCAL_ONLY">
+  **Value: 4**
+  
+  The number matches local-only patterns (may be dialable within an area but not nationally).
+  
+  ```php
+  $localNumber = $phoneUtil->parse('496 0123', 'GB');
+  $result = $phoneUtil->isPossibleNumberWithReason($localNumber);
+  
+  if ($result === \libphonenumber\ValidationResult::IS_POSSIBLE_LOCAL_ONLY) {
+      echo "This is a local-only number";
+  }
+  ```
+</Accordion>
+
+<Accordion title="INVALID_LENGTH">
+  **Value: 5**
+  
+  The number length doesn't match any valid numbers for this region, but is between shortest and longest valid lengths.
+  
+  ```php
+  $number = $phoneUtil->parse('12345678', 'US'); // Wrong length
+  $result = $phoneUtil->isPossibleNumberWithReason($number);
+  
+  if ($result === \libphonenumber\ValidationResult::INVALID_LENGTH) {
+      echo "Number length is invalid";
+  }
+  ```
+</Accordion>
+
+## Validation Methods
+
+### isPossibleNumber()
+
+Returns a boolean indicating if a number is possible.
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+// Option 1: With PhoneNumber object
+$number = $phoneUtil->parse('650-253-0000', 'US');
+if ($phoneUtil->isPossibleNumber($number)) {
+    echo "Number is possible";
+}
+
+// Option 2: With string and region
+if ($phoneUtil->isPossibleNumber('650-253-0000', 'US')) {
+    echo "Number is possible";
+}
+```
+
+<Note>
+  This is a quick check. Use `isPossibleNumberWithReason()` if you need to know why a number is not possible.
+</Note>
+
+### isPossibleNumberWithReason()
+
+Returns a `ValidationResult` with detailed information:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('123', 'US');
+
+$result = $phoneUtil->isPossibleNumberWithReason($number);
+
+switch ($result) {
+    case \libphonenumber\ValidationResult::IS_POSSIBLE:
+        echo "Number is possible";
+        break;
+    case \libphonenumber\ValidationResult::TOO_SHORT:
+        echo "Number is too short";
+        break;
+    case \libphonenumber\ValidationResult::TOO_LONG:
+        echo "Number is too long";
+        break;
+    case \libphonenumber\ValidationResult::INVALID_COUNTRY_CODE:
+        echo "Invalid country code";
+        break;
+    case \libphonenumber\ValidationResult::INVALID_LENGTH:
+        echo "Invalid length";
+        break;
+    case \libphonenumber\ValidationResult::IS_POSSIBLE_LOCAL_ONLY:
+        echo "Local-only number";
+        break;
+}
+```
+
+### isPossibleNumberForTypeWithReason()
+
+Check if a number is possible for a specific phone number type:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('7400 123456', 'GB');
+
+// Check if it's possible as a mobile number
+$result = $phoneUtil->isPossibleNumberForTypeWithReason(
+    $number,
+    \libphonenumber\PhoneNumberType::MOBILE
+);
+
+if ($result === \libphonenumber\ValidationResult::IS_POSSIBLE) {
+    echo "Could be a mobile number";
+}
+
+// Check if it's possible as a fixed-line number
+$result = $phoneUtil->isPossibleNumberForTypeWithReason(
+    $number,
+    \libphonenumber\PhoneNumberType::FIXED_LINE
+);
+
+if ($result !== \libphonenumber\ValidationResult::IS_POSSIBLE) {
+    echo "Not possible as a fixed-line number";
+}
+```
+
+### isValidNumber()
+
+Returns a boolean indicating if a number matches known patterns:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('650-253-0000', 'US');
+
+if ($phoneUtil->isValidNumber($number)) {
+    echo "Number is valid";
+    // Safe to store, display, or use
+} else {
+    echo "Number is not valid";
+    // Show error to user
+}
+```
+
+<Warning>
+  `isValidNumber()` does NOT verify:
+  - If the number is currently in service
+  - If the number is assigned to a subscriber
+  - If the number can receive calls or SMS
+  - If the number belongs to a specific person or business
+</Warning>
+
+### isValidNumberForRegion()
+
+Check if a number is valid for a specific region:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('+44 117 496 0123', null);
+
+// Valid for GB?
+if ($phoneUtil->isValidNumberForRegion($number, 'GB')) {
+    echo "Valid UK number";
+}
+
+// Valid for US?
+if (!$phoneUtil->isValidNumberForRegion($number, 'US')) {
+    echo "Not a valid US number";
+}
+```
+
+<Note>
+  This is useful when you want to ensure a number belongs to a specific country, such as validating a billing phone number matches the billing country.
+</Note>
+
+## Validation Examples
+
+### Basic Validation Flow
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+try {
+    // Step 1: Parse the number
+    $number = $phoneUtil->parse($userInput, $defaultRegion);
+    
+    // Step 2: Check if it's possible
+    if (!$phoneUtil->isPossibleNumber($number)) {
+        throw new Exception("Invalid phone number format");
+    }
+    
+    // Step 3: Check if it's valid
+    if (!$phoneUtil->isValidNumber($number)) {
+        throw new Exception("Phone number is not valid");
+    }
+    
+    // Step 4: Number is good to use
+    $e164 = $phoneUtil->format($number, \libphonenumber\PhoneNumberFormat::E164);
+    saveToDatabase($e164);
+    
+} catch (\libphonenumber\NumberParseException $e) {
+    echo "Cannot parse phone number: " . $e->getMessage();
+} catch (Exception $e) {
+    echo $e->getMessage();
+}
+```
+
+### Detailed Validation with Feedback
+
+```php
+function validatePhoneNumber(string $input, string $region): array
+{
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    try {
+        $number = $phoneUtil->parse($input, $region);
+    } catch (\libphonenumber\NumberParseException $e) {
+        return [
+            'valid' => false,
+            'message' => 'Cannot parse: ' . $e->getMessage()
+        ];
+    }
+    
+    // Check if possible
+    $possibleResult = $phoneUtil->isPossibleNumberWithReason($number);
+    
+    if ($possibleResult !== \libphonenumber\ValidationResult::IS_POSSIBLE) {
+        $message = match($possibleResult) {
+            \libphonenumber\ValidationResult::TOO_SHORT => 
+                'Phone number is too short',
+            \libphonenumber\ValidationResult::TOO_LONG => 
+                'Phone number is too long',
+            \libphonenumber\ValidationResult::INVALID_COUNTRY_CODE => 
+                'Invalid country code',
+            \libphonenumber\ValidationResult::INVALID_LENGTH => 
+                'Phone number has invalid length',
+            \libphonenumber\ValidationResult::IS_POSSIBLE_LOCAL_ONLY => 
+                'This appears to be a local-only number',
+            default => 'Phone number is not possible'
+        };
+        
+        return ['valid' => false, 'message' => $message];
+    }
+    
+    // Check if valid
+    if (!$phoneUtil->isValidNumber($number)) {
+        return [
+            'valid' => false,
+            'message' => 'Phone number does not match known patterns'
+        ];
+    }
+    
+    // Success!
+    return [
+        'valid' => true,
+        'number' => $number,
+        'formatted' => $phoneUtil->format(
+            $number,
+            \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+        ),
+        'e164' => $phoneUtil->format(
+            $number,
+            \libphonenumber\PhoneNumberFormat::E164
+        ),
+        'type' => $phoneUtil->getNumberType($number)->name
+    ];
+}
+
+// Usage
+$result = validatePhoneNumber('0117 496 0123', 'GB');
+if ($result['valid']) {
+    echo "Valid: " . $result['formatted'];
+    echo "Type: " . $result['type'];
+} else {
+    echo "Invalid: " . $result['message'];
+}
+```
+
+### Type-Specific Validation
+
+```php
+function validateMobileNumber(string $input, string $region): bool
+{
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    
+    try {
+        $number = $phoneUtil->parse($input, $region);
+        
+        // Must be valid
+        if (!$phoneUtil->isValidNumber($number)) {
+            return false;
+        }
+        
+        // Must be mobile or could-be-mobile
+        $type = $phoneUtil->getNumberType($number);
+        return $type === \libphonenumber\PhoneNumberType::MOBILE
+            || $type === \libphonenumber\PhoneNumberType::FIXED_LINE_OR_MOBILE;
+            
+    } catch (\libphonenumber\NumberParseException $e) {
+        return false;
+    }
+}
+
+// Usage
+if (validateMobileNumber('07400 123456', 'GB')) {
+    echo "This is a valid mobile number";
+}
+```
+
+## Validation Limitations
+
+<Warning>
+  Understanding what the library **cannot** validate is just as important as knowing what it can validate.
+</Warning>
+
+### What Validation Does NOT Check
+
+<Accordion title="Number is in service">
+  The library cannot verify if a number is currently active:
+  
+  ```php
+  $number = $phoneUtil->parse('+1-555-0100', 'US');
+  
+  if ($phoneUtil->isValidNumber($number)) {
+      // ✅ Number matches US patterns
+      // ❌ Does NOT mean the number can receive calls
+      // ❌ Does NOT mean the number is assigned
+      // ❌ Does NOT mean it's not disconnected
+  }
+  ```
+  
+  To verify a number is in service, you need:
+  - SMS verification
+  - Voice call verification
+  - Third-party number validation API
+</Accordion>
+
+<Accordion title="Number can receive SMS">
+  Even valid mobile numbers may not accept SMS:
+  
+  ```php
+  $number = $phoneUtil->parse('+1-650-253-0000', 'US');
+  $type = $phoneUtil->getNumberType($number);
+  
+  if ($type === \libphonenumber\PhoneNumberType::MOBILE) {
+      // ✅ Pattern matches mobile numbers
+      // ❌ Does NOT guarantee SMS capability
+      // ❌ Could be a data-only SIM
+      // ❌ Could have SMS disabled
+  }
+  ```
+</Accordion>
+
+<Accordion title="Number ownership">
+  Validation cannot determine who owns a number:
+  
+  ```php
+  // These numbers might be valid but belong to:
+  // - A different person
+  // - A business
+  // - A VoIP service
+  // - A disconnected line
+  // The library cannot tell
+  ```
+</Accordion>
+
+<Accordion title="Reachability from your location">
+  A valid number may not be dialable from your location:
+  
+  ```php
+  $auNumber = $phoneUtil->parse('1300123456', 'AU');
+  
+  if ($phoneUtil->isValidNumber($auNumber)) {
+      // ✅ Valid Australian number
+      // ❌ Cannot be called from outside Australia
+      // Use formatNumberForMobileDialing() to check dialability
+  }
+  ```
+</Accordion>
+
+### Recommended Additional Validation
+
+For critical applications, combine pattern validation with:
+
+```php
+// 1. Pattern validation (libphonenumber)
+if (!$phoneUtil->isValidNumber($number)) {
+    return "Invalid number format";
+}
+
+// 2. SMS verification
+sendVerificationCode($number);
+
+// 3. User confirms they received the code
+if (!verifyCode($number, $userCode)) {
+    return "Number cannot receive SMS";
+}
+
+// 4. Optional: HLR lookup (via third-party service)
+// Checks if number is active on mobile network
+```
+
+## Best Practices
+
+<Tabs>
+  <Tab title="Always Parse First">
+    ```php
+    // ❌ Don't validate raw strings
+    if (preg_match('/^\+[0-9]+$/', $userInput)) {
+        // This is insufficient
+    }
+    
+    // ✅ Always parse then validate
+    try {
+        $number = $phoneUtil->parse($userInput, $region);
+        if ($phoneUtil->isValidNumber($number)) {
+            // Now we know it's valid
+        }
+    } catch (\libphonenumber\NumberParseException $e) {
+        // Handle invalid input
+    }
+    ```
+  </Tab>
+  <Tab title="Choose Right Validation">
+    ```php
+    // For user input: use isValidNumber
+    if ($phoneUtil->isValidNumber($number)) {
+        saveNumber($number);
+    }
+    
+    // For quick checks: use isPossibleNumber
+    if ($phoneUtil->isPossibleNumber($number)) {
+        // Might be valid, queue for later validation
+    }
+    
+    // For detailed feedback: use isPossibleNumberWithReason
+    $result = $phoneUtil->isPossibleNumberWithReason($number);
+    // Show specific error to user
+    ```
+  </Tab>
+  <Tab title="Handle Errors Gracefully">
+    ```php
+    function validateAndFormat(string $input, string $region): ?string
+    {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        
+        try {
+            $number = $phoneUtil->parse($input, $region);
+            
+            if ($phoneUtil->isValidNumber($number)) {
+                return $phoneUtil->format(
+                    $number,
+                    \libphonenumber\PhoneNumberFormat::E164
+                );
+            }
+        } catch (\libphonenumber\NumberParseException $e) {
+            // Log for debugging, but don't expose to user
+            error_log("Phone parse error: " . $e->getMessage());
+        }
+        
+        return null;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Info>
+  For production applications, always combine pattern validation with verification (SMS/voice) to ensure the number is reachable.
+</Info>

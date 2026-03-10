@@ -1,0 +1,682 @@
+---
+title: PhoneNumber
+description: Data structure representing a parsed phone number
+---
+
+## Overview
+
+The `PhoneNumber` class is a data structure that represents a parsed phone number. It stores all components of a phone number including:
+
+- Country calling code
+- National number
+- Extension
+- Leading zeros (for Italian-style numbers)
+- Raw input (when using `parseAndKeepRawInput()`)
+- Country code source information
+- Preferred carrier code
+
+<Note>
+  It is **not recommended** to create `PhoneNumber` objects directly. Instead, use `PhoneNumberUtil::parse()` to parse a number string and return a properly populated `PhoneNumber` object.
+</Note>
+
+## Creating PhoneNumber Objects
+
+### Recommended: Using PhoneNumberUtil
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+```
+
+### Manual Creation (Not Recommended)
+
+If you need to manually construct a `PhoneNumber` object:
+
+```php
+$phoneNumber = new \libphonenumber\PhoneNumber();
+$phoneNumber->setCountryCode(44);
+$phoneNumber->setNationalNumber('1174960123');
+```
+
+## PhoneNumber Structure
+
+When you parse a number, the resulting `PhoneNumber` object contains:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$phoneNumber = $phoneUtil->parse('0117 496 0123', 'GB');
+
+var_dump($phoneNumber);
+```
+
+**Output:**
+
+```
+object(libphonenumber\PhoneNumber) {
+  ["countryCode":private] => int(44)
+  ["nationalNumber":private] => string(10) "1174960123"
+  ["extension":private] => NULL
+  ["italianLeadingZero":private] => NULL
+  ["rawInput":private] => NULL
+  ["countryCodeSource":private] => NULL
+  ["preferredDomesticCarrierCode":private] => NULL
+  ["hasNumberOfLeadingZeros":private] => bool(false)
+  ["numberOfLeadingZeros":private] => int(1)
+}
+```
+
+## Properties and Methods
+
+### Country Code
+
+<Tabs>
+  <Tab title="getCountryCode()">
+    ```php
+    public function getCountryCode(): ?int
+    ```
+
+    Returns the country calling code (e.g., 1 for NANPA countries, 44 for UK).
+
+    **Returns:** `int|null` - The country code or null if not set
+
+    **Example:**
+
+    ```php
+    $phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+    echo $phoneNumber->getCountryCode(); // 44
+    ```
+  </Tab>
+
+  <Tab title="setCountryCode()">
+    ```php
+    public function setCountryCode(int $value): static
+    ```
+
+    Sets the country calling code.
+
+    <ParamField path="value" type="int" required>
+      The country calling code
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance (for method chaining)
+
+    **Example:**
+
+    ```php
+    $phoneNumber = new \libphonenumber\PhoneNumber();
+    $phoneNumber->setCountryCode(44);
+    ```
+  </Tab>
+
+  <Tab title="hasCountryCode()">
+    ```php
+    public function hasCountryCode(): bool
+    ```
+
+    Checks if country code is set.
+
+    **Returns:** `bool` - `true` if set
+
+    **Example:**
+
+    ```php
+    if ($phoneNumber->hasCountryCode()) {
+        echo "Country code: " . $phoneNumber->getCountryCode();
+    }
+    ```
+  </Tab>
+
+  <Tab title="clearCountryCode()">
+    ```php
+    public function clearCountryCode(): static
+    ```
+
+    Clears the country code.
+
+    **Returns:** `static` - The PhoneNumber instance
+
+    **Example:**
+
+    ```php
+    $phoneNumber->clearCountryCode();
+    ```
+  </Tab>
+</Tabs>
+
+### National Number
+
+<Tabs>
+  <Tab title="getNationalNumber()">
+    ```php
+    public function getNationalNumber(): ?string
+    ```
+
+    Returns the national significant number (without country code or formatting).
+
+    **Returns:** `string|null` - The national number or null if not set
+
+    **Example:**
+
+    ```php
+    $phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+    echo $phoneNumber->getNationalNumber(); // "1174960123"
+    ```
+  </Tab>
+
+  <Tab title="setNationalNumber()">
+    ```php
+    public function setNationalNumber(string $value): static
+    ```
+
+    Sets the national number.
+
+    <ParamField path="value" type="string" required>
+      The national number (digits only)
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+
+    **Example:**
+
+    ```php
+    $phoneNumber = new \libphonenumber\PhoneNumber();
+    $phoneNumber->setNationalNumber('1174960123');
+    ```
+  </Tab>
+
+  <Tab title="hasNationalNumber()">
+    ```php
+    public function hasNationalNumber(): bool
+    ```
+
+    Checks if national number is set.
+
+    **Returns:** `bool` - `true` if set
+  </Tab>
+
+  <Tab title="clearNationalNumber()">
+    ```php
+    public function clearNationalNumber(): static
+    ```
+
+    Clears the national number.
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+### Extension
+
+<Tabs>
+  <Tab title="getExtension()">
+    ```php
+    public function getExtension(): ?string
+    ```
+
+    Returns the phone number extension (e.g., "123" from "555-1234 ext. 123").
+
+    **Returns:** `string|null` - The extension or null if not set
+
+    **Example:**
+
+    ```php
+    $phoneNumber = $phoneUtil->parse('0117 496 0123 ext. 456', 'GB');
+    echo $phoneNumber->getExtension(); // "456"
+    ```
+  </Tab>
+
+  <Tab title="setExtension()">
+    ```php
+    public function setExtension(string $value): static
+    ```
+
+    Sets the extension.
+
+    <ParamField path="value" type="string" required>
+      The extension (ASCII digits only)
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+
+    **Example:**
+
+    ```php
+    $phoneNumber->setExtension('123');
+    ```
+  </Tab>
+
+  <Tab title="hasExtension()">
+    ```php
+    public function hasExtension(): bool
+    ```
+
+    Checks if extension is set and non-empty.
+
+    **Returns:** `bool` - `true` if extension exists
+  </Tab>
+
+  <Tab title="clearExtension()">
+    ```php
+    public function clearExtension(): static
+    ```
+
+    Clears the extension.
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+### Italian Leading Zero
+
+In some countries (notably Italy), fixed-line numbers start with "0" even in international format. This field tracks that leading zero.
+
+<Tabs>
+  <Tab title="isItalianLeadingZero()">
+    ```php
+    public function isItalianLeadingZero(): ?bool
+    ```
+
+    Returns whether this number has an Italian leading zero.
+
+    **Returns:** `bool|null` - `true` if has leading zero, `false` if not, `null` if not set
+
+    **Example:**
+
+    ```php
+    $italianNumber = $phoneUtil->parse('+39 02 1234567', null);
+    var_dump($italianNumber->isItalianLeadingZero()); // bool(true)
+    ```
+  </Tab>
+
+  <Tab title="setItalianLeadingZero()">
+    ```php
+    public function setItalianLeadingZero(bool $value): static
+    ```
+
+    Sets the Italian leading zero flag.
+
+    <ParamField path="value" type="bool" required>
+      Whether number has leading zero
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+
+  <Tab title="hasItalianLeadingZero()">
+    ```php
+    public function hasItalianLeadingZero(): bool
+    ```
+
+    Checks if Italian leading zero flag is set.
+
+    **Returns:** `bool` - `true` if set
+  </Tab>
+
+  <Tab title="clearItalianLeadingZero()">
+    ```php
+    public function clearItalianLeadingZero(): static
+    ```
+
+    Clears the Italian leading zero flag.
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+### Number of Leading Zeros
+
+<Tabs>
+  <Tab title="getNumberOfLeadingZeros()">
+    ```php
+    public function getNumberOfLeadingZeros(): int
+    ```
+
+    Returns the number of leading zeros (defaults to 1 if Italian leading zero is set).
+
+    **Returns:** `int` - Number of leading zeros
+  </Tab>
+
+  <Tab title="setNumberOfLeadingZeros()">
+    ```php
+    public function setNumberOfLeadingZeros(int $value): static
+    ```
+
+    Sets the number of leading zeros.
+
+    <ParamField path="value" type="int" required>
+      Number of leading zeros
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+
+  <Tab title="hasNumberOfLeadingZeros()">
+    ```php
+    public function hasNumberOfLeadingZeros(): bool
+    ```
+
+    Checks if number of leading zeros is explicitly set.
+
+    **Returns:** `bool` - `true` if set
+  </Tab>
+
+  <Tab title="clearNumberOfLeadingZeros()">
+    ```php
+    public function clearNumberOfLeadingZeros(): static
+    ```
+
+    Clears the number of leading zeros (resets to default of 1).
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+### Raw Input
+
+When using `parseAndKeepRawInput()`, the original input string is preserved.
+
+<Tabs>
+  <Tab title="getRawInput()">
+    ```php
+    public function getRawInput(): ?string
+    ```
+
+    Returns the raw input string as originally provided.
+
+    **Returns:** `string|null` - The raw input or null
+
+    **Example:**
+
+    ```php
+    $phoneNumber = $phoneUtil->parseAndKeepRawInput('1-800-GOOG-411', 'US');
+    echo $phoneNumber->getRawInput(); // "1-800-GOOG-411"
+    ```
+  </Tab>
+
+  <Tab title="setRawInput()">
+    ```php
+    public function setRawInput(string $value): static
+    ```
+
+    Sets the raw input string.
+
+    <ParamField path="value" type="string" required>
+      The raw input
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+
+  <Tab title="hasRawInput()">
+    ```php
+    public function hasRawInput(): bool
+    ```
+
+    Checks if raw input is set.
+
+    **Returns:** `bool` - `true` if set
+  </Tab>
+
+  <Tab title="clearRawInput()">
+    ```php
+    public function clearRawInput(): static
+    ```
+
+    Clears the raw input.
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+### Country Code Source
+
+Indicates how the country code was determined during parsing.
+
+<Tabs>
+  <Tab title="getCountryCodeSource()">
+    ```php
+    public function getCountryCodeSource(): ?CountryCodeSource
+    ```
+
+    Returns how the country code was determined.
+
+    **Returns:** `CountryCodeSource|null` enum with values:
+    - `FROM_NUMBER_WITH_PLUS_SIGN` - From '+' prefix
+    - `FROM_NUMBER_WITH_IDD` - From international dialing prefix
+    - `FROM_NUMBER_WITHOUT_PLUS_SIGN` - Matched default region
+    - `FROM_DEFAULT_COUNTRY` - Used default region
+    - `UNSPECIFIED` - Not specified
+
+    **Example:**
+
+    ```php
+    $phoneNumber = $phoneUtil->parseAndKeepRawInput('+44 117 496 0123', null);
+    echo $phoneNumber->getCountryCodeSource()->name;
+    // "FROM_NUMBER_WITH_PLUS_SIGN"
+    ```
+  </Tab>
+
+  <Tab title="setCountryCodeSource()">
+    ```php
+    public function setCountryCodeSource(CountryCodeSource $value): static
+    ```
+
+    Sets the country code source.
+
+    <ParamField path="value" type="CountryCodeSource" required>
+      The country code source
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+
+  <Tab title="hasCountryCodeSource()">
+    ```php
+    public function hasCountryCodeSource(): bool
+    ```
+
+    Checks if country code source is set (not UNSPECIFIED).
+
+    **Returns:** `bool` - `true` if set
+  </Tab>
+
+  <Tab title="clearCountryCodeSource()">
+    ```php
+    public function clearCountryCodeSource(): static
+    ```
+
+    Clears the country code source (sets to UNSPECIFIED).
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+### Preferred Carrier Code
+
+The preferred carrier selection code for domestic dialing in some countries (e.g., Colombia).
+
+<Tabs>
+  <Tab title="getPreferredDomesticCarrierCode()">
+    ```php
+    public function getPreferredDomesticCarrierCode(): ?string
+    ```
+
+    Returns the preferred domestic carrier code.
+
+    **Returns:** `string|null` - The carrier code or null
+
+    **Example:**
+
+    ```php
+    $arNumber = new \libphonenumber\PhoneNumber();
+    $arNumber->setCountryCode(54);
+    $arNumber->setNationalNumber('91234125678');
+    $arNumber->setPreferredDomesticCarrierCode('19');
+
+    echo $arNumber->getPreferredDomesticCarrierCode(); // "19"
+    ```
+  </Tab>
+
+  <Tab title="setPreferredDomesticCarrierCode()">
+    ```php
+    public function setPreferredDomesticCarrierCode(string $value): static
+    ```
+
+    Sets the preferred carrier code.
+
+    <ParamField path="value" type="string" required>
+      The carrier code
+    </ParamField>
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+
+  <Tab title="hasPreferredDomesticCarrierCode()">
+    ```php
+    public function hasPreferredDomesticCarrierCode(): bool
+    ```
+
+    Checks if carrier code is set.
+
+    **Returns:** `bool` - `true` if set
+  </Tab>
+
+  <Tab title="clearPreferredDomesticCarrierCode()">
+    ```php
+    public function clearPreferredDomesticCarrierCode(): static
+    ```
+
+    Clears the carrier code.
+
+    **Returns:** `static` - The PhoneNumber instance
+  </Tab>
+</Tabs>
+
+## Utility Methods
+
+### mergeFrom()
+
+Merges information from another PhoneNumber object.
+
+```php
+public function mergeFrom(PhoneNumber $other): static
+```
+
+<ParamField path="other" type="PhoneNumber" required>
+  The PhoneNumber to merge from
+</ParamField>
+
+**Returns:** `static` - The PhoneNumber instance
+
+**Example:**
+
+```php
+$phoneNumber1 = new \libphonenumber\PhoneNumber();
+$phoneNumber1->setCountryCode(44);
+
+$phoneNumber2 = new \libphonenumber\PhoneNumber();
+$phoneNumber2->setNationalNumber('1174960123');
+$phoneNumber2->setExtension('123');
+
+$phoneNumber1->mergeFrom($phoneNumber2);
+// Now phoneNumber1 has country code 44, national number 1174960123, and extension 123
+```
+
+### equals()
+
+Checks if two PhoneNumber objects are equal.
+
+```php
+public function equals(PhoneNumber $other): bool
+```
+
+<ParamField path="other" type="PhoneNumber" required>
+  The PhoneNumber to compare with
+</ParamField>
+
+**Returns:** `bool` - `true` if equal
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number1 = $phoneUtil->parse('+44 117 496 0123', null);
+$number2 = $phoneUtil->parse('0117 496 0123', 'GB');
+
+var_dump($number1->equals($number2)); // bool(true)
+```
+
+### clear()
+
+Clears all fields in the PhoneNumber object.
+
+```php
+public function clear(): static
+```
+
+**Returns:** `static` - The PhoneNumber instance
+
+**Example:**
+
+```php
+$phoneNumber->clear();
+// All fields are now null/default
+```
+
+### __toString()
+
+Returns a string representation of the phone number.
+
+```php
+public function __toString(): string
+```
+
+**Returns:** `string` - Human-readable representation
+
+**Example:**
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$phoneNumber = $phoneUtil->parse('+44 117 496 0123 ext. 456', null);
+
+echo $phoneNumber;
+// "Country Code: 44 National Number: 1174960123 Extension: 456"
+```
+
+## Method Chaining Example
+
+All setter methods return the PhoneNumber instance, allowing method chaining:
+
+```php
+$phoneNumber = new \libphonenumber\PhoneNumber();
+$phoneNumber
+    ->setCountryCode(44)
+    ->setNationalNumber('1174960123')
+    ->setExtension('456');
+
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+echo $phoneUtil->format($phoneNumber, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+// "+44 117 496 0123 ext. 456"
+```
+
+## Serialization
+
+PhoneNumber objects can be serialized and unserialized:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$phoneNumber = $phoneUtil->parse('+44 117 496 0123', null);
+
+// Serialize
+$serialized = serialize($phoneNumber);
+
+// Unserialize
+$restored = unserialize($serialized);
+
+var_dump($phoneNumber->equals($restored)); // bool(true)
+```
+
+## See Also
+
+- [PhoneNumberUtil](/api/phone-number-util) - For parsing and formatting phone numbers
+- [ShortNumberInfo](/api/short-number-info) - For short codes and emergency numbers

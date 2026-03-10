@@ -1,0 +1,261 @@
+---
+title: 'AsYouTypeFormatter'
+description: 'Format phone numbers in real-time as users type'
+---
+
+## Overview
+
+The `AsYouTypeFormatter` class provides real-time formatting of phone numbers as they are entered, digit by digit. This is particularly useful for creating user-friendly input fields that automatically format phone numbers while users type.
+
+<Note>
+  The `AsYouTypeFormatter` should be obtained from `PhoneNumberUtil::getAsYouTypeFormatter()` rather than instantiating it directly.
+</Note>
+
+## Getting an Instance
+
+To use the AsYouTypeFormatter, obtain an instance through `PhoneNumberUtil`:
+
+```php
+$phoneNumberUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('US');
+```
+
+<ParamField path="regionCode" type="string" required>
+  The country/region code where the phone number is being entered (e.g., 'US', 'GB', 'DE')
+</ParamField>
+
+## Methods
+
+### inputDigit()
+
+Formats a phone number on-the-fly as each digit is entered.
+
+```php
+public function inputDigit(string $nextChar): string
+```
+
+<ParamField path="nextChar" type="string" required>
+  The most recently entered digit of a phone number. Formatting characters are allowed, but as soon as they are encountered, this method formats the number as entered and not "as you type" anymore. Full width digits and Arabic-Indic digits are allowed and will be shown as they are.
+</ParamField>
+
+**Returns:** `string` - The partially formatted phone number
+
+#### Example: Progressive Formatting
+
+<Steps>
+  <Step title="Create the formatter">
+    Get an instance of AsYouTypeFormatter for your target region:
+    
+    ```php
+    $phoneNumberUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $formatter = $phoneNumberUtil->getAsYouTypeFormatter('GB');
+    ```
+  </Step>
+  
+  <Step title="Input digits one by one">
+    Call `inputDigit()` for each character the user enters:
+    
+    ```php
+    echo $formatter->inputDigit('0'); // "0"
+    echo $formatter->inputDigit('1'); // "01"
+    echo $formatter->inputDigit('1'); // "011"
+    echo $formatter->inputDigit('7'); // "0117"
+    echo $formatter->inputDigit('4'); // "0117 4"
+    echo $formatter->inputDigit('9'); // "0117 49"
+    echo $formatter->inputDigit('6'); // "0117 496"
+    echo $formatter->inputDigit('0'); // "0117 496 0"
+    echo $formatter->inputDigit('1'); // "0117 496 01"
+    echo $formatter->inputDigit('2'); // "01174 96012"
+    echo $formatter->inputDigit('3'); // "0117 496 0123"
+    ```
+  </Step>
+  
+  <Step title="Display the formatted result">
+    The formatter automatically applies the appropriate formatting based on the region and number pattern.
+  </Step>
+</Steps>
+
+### clear()
+
+Clears the internal state of the formatter so it can be reused for formatting another number.
+
+```php
+public function clear(): void
+```
+
+<Note>
+  Always call `clear()` before formatting a new phone number to ensure the formatter starts with a clean state.
+</Note>
+
+#### Example: Reusing the Formatter
+
+```php
+$phoneNumberUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('US');
+
+// Format first number
+foreach (str_split('2015551234') as $digit) {
+    $result = $formatter->inputDigit($digit);
+}
+echo $result; // "(201) 555-1234"
+
+// Clear and format second number
+$formatter->clear();
+foreach (str_split('4155552345') as $digit) {
+    $result = $formatter->inputDigit($digit);
+}
+echo $result; // "(415) 555-2345"
+```
+
+### inputDigitAndRememberPosition()
+
+Same as `inputDigit()`, but remembers the position where the character is inserted. This is useful for maintaining cursor position in text inputs.
+
+```php
+public function inputDigitAndRememberPosition(string $nextChar): string
+```
+
+<ParamField path="nextChar" type="string" required>
+  The most recently entered digit of a phone number
+</ParamField>
+
+**Returns:** `string` - The partially formatted phone number
+
+The remembered position can be retrieved later using `getRememberedPosition()` and will be automatically adjusted if additional formatting characters are inserted or removed.
+
+### getRememberedPosition()
+
+Returns the current position in the partially formatted phone number of the character that was previously passed to `inputDigitAndRememberPosition()`.
+
+```php
+public function getRememberedPosition(): int
+```
+
+**Returns:** `int` - The position in the formatted string
+
+## Complete Usage Example
+
+<CodeGroup>
+```php UK Number
+<?php
+use libphonenumber\PhoneNumberUtil;
+
+$phoneNumberUtil = PhoneNumberUtil::getInstance();
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('GB');
+
+$digits = '01174960123';
+foreach (str_split($digits) as $digit) {
+    $formatted = $formatter->inputDigit($digit);
+    echo $formatted . "\n";
+}
+// Output progression:
+// 0
+// 01
+// 011
+// 0117
+// 0117 4
+// 0117 49
+// 0117 496
+// 0117 496 0
+// 0117 496 01
+// 01174 96012
+// 0117 496 0123
+```
+
+```php US Number
+<?php
+use libphonenumber\PhoneNumberUtil;
+
+$phoneNumberUtil = PhoneNumberUtil::getInstance();
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('US');
+
+$digits = '2015551234';
+foreach (str_split($digits) as $digit) {
+    $formatted = $formatter->inputDigit($digit);
+    echo $formatted . "\n";
+}
+// Output progression:
+// 2
+// 20
+// 201
+// (201) 5
+// (201) 55
+// (201) 555
+// (201) 555-1
+// (201) 555-12
+// (201) 555-123
+// (201) 555-1234
+```
+
+```php International Number
+<?php
+use libphonenumber\PhoneNumberUtil;
+
+$phoneNumberUtil = PhoneNumberUtil::getInstance();
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('US');
+
+$digits = '+41446681800';
+foreach (str_split($digits) as $digit) {
+    $formatted = $formatter->inputDigit($digit);
+    echo $formatted . "\n";
+}
+// Automatically detects and formats international numbers
+```
+</CodeGroup>
+
+## Use Cases
+
+### Form Input Validation
+
+Ideal for enhancing user experience in phone number input fields:
+
+```php
+// In your form handler
+$userInput = $_POST['phone'];
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('US');
+
+foreach (str_split($userInput) as $char) {
+    $formatted = $formatter->inputDigit($char);
+}
+
+// Display formatted number back to user
+echo $formatted;
+```
+
+### Real-time JavaScript Integration
+
+Use with AJAX to format numbers as users type:
+
+```php
+// api/format-digit.php
+$digit = $_GET['digit'];
+$currentInput = $_GET['current'];
+
+$formatter = $phoneNumberUtil->getAsYouTypeFormatter('US');
+
+// Replay all digits
+foreach (str_split($currentInput . $digit) as $d) {
+    $result = $formatter->inputDigit($d);
+}
+
+header('Content-Type: application/json');
+echo json_encode(['formatted' => $result]);
+```
+
+## Important Notes
+
+<Warning>
+  The formatter assumes input consists of digits and the plus sign only. Other formatting characters (spaces, dashes, parentheses) will cause the formatter to stop applying automatic formatting and return the input as entered.
+</Warning>
+
+- The formatter intelligently detects international dialing prefixes (IDD) and country codes
+- National prefixes are automatically handled based on the region
+- Formatting patterns are selected based on the leading digits entered
+- Full-width digits and Arabic-Indic digits are supported and normalized
+- The formatter maintains state across multiple `inputDigit()` calls
+- Use `clear()` to reset the formatter for a new number
+
+## Related
+
+- [PhoneNumberFormat](/api/phone-number-format) - Format constants for final number formatting
+- [PhoneNumberUtil](/api/phone-number-util) - Main utility class for phone number operations

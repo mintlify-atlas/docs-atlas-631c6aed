@@ -1,0 +1,495 @@
+---
+title: Carrier Mapping
+description: Identify mobile carriers from phone numbers
+---
+
+# Carrier Mapping
+
+The `PhoneNumberToCarrierMapper` identifies the mobile carrier for a phone number. This is useful for displaying carrier information to users or routing calls/messages appropriately.
+
+<Note>
+Carrier mapping works best for mobile numbers and is limited by available data for each country.
+</Note>
+
+## Getting Started
+
+<Steps>
+  <Step title="Get Mapper Instance">
+    ```php
+    use libphonenumber\PhoneNumberToCarrierMapper;
+    
+    $carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+    ```
+  </Step>
+  
+  <Step title="Parse a Phone Number">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $number = $phoneUtil->parse('798765432', 'CH');
+    ```
+  </Step>
+  
+  <Step title="Get Carrier Name">
+    ```php
+    // Get carrier name in English
+    $carrier = $carrierMapper->getNameForNumber($number, 'en');
+    echo $carrier; // "Swisscom"
+    ```
+  </Step>
+</Steps>
+
+## Basic Usage
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\PhoneNumberToCarrierMapper;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+// Parse a Swiss mobile number
+$swissNumber = $phoneUtil->parse('798765432', 'CH');
+
+// Get carrier name
+$carrier = $carrierMapper->getNameForNumber($swissNumber, 'en');
+echo $carrier; // Output: Swisscom
+```
+
+## Localized Carrier Names
+
+Carrier names can be returned in different languages:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+$mobileNumber = $phoneUtil->parse('798765432', 'CH');
+
+// English
+echo $carrierMapper->getNameForNumber($mobileNumber, 'en');
+// Output: Swisscom
+
+// German
+echo $carrierMapper->getNameForNumber($mobileNumber, 'de');
+// Output: Swisscom (same in this case)
+
+// French
+echo $carrierMapper->getNameForNumber($mobileNumber, 'fr');
+// Output: Swisscom
+```
+
+<Tip>
+Use the user's locale to display carrier names in their preferred language when available.
+</Tip>
+
+## Working with Valid Numbers
+
+For better performance with pre-validated numbers:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+$number = $phoneUtil->parse('+41 79 876 54 32', null);
+
+// Validate first
+if ($phoneUtil->isValidNumber($number)) {
+    // More efficient if already validated
+    $carrier = $carrierMapper->getNameForValidNumber($number, 'en');
+    echo $carrier; // Swisscom
+}
+```
+
+## Safe Display Names
+
+Get a safe carrier name that handles edge cases:
+
+```php
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+$number = $phoneUtil->parse('798765432', 'CH');
+
+// Returns carrier name or empty string (never null)
+$carrier = $carrierMapper->getSafeDisplayName($number, 'en');
+
+if (empty($carrier)) {
+    echo "Carrier information not available";
+} else {
+    echo "Carrier: $carrier";
+}
+```
+
+## Handling Different Number Types
+
+Carrier mapping works primarily for mobile numbers:
+
+```php
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+// Mobile number - likely to have carrier data
+$mobile = $phoneUtil->parse('07400 123456', 'GB');
+$type = $phoneUtil->getNumberType($mobile);
+
+if ($type === \libphonenumber\PhoneNumberType::MOBILE) {
+    $carrier = $carrierMapper->getNameForNumber($mobile, 'en');
+    echo $carrier ?: 'Unknown carrier';
+}
+
+// Landline - typically no carrier data
+$landline = $phoneUtil->parse('0117 496 0123', 'GB');
+$carrier = $carrierMapper->getNameForNumber($landline, 'en');
+echo $carrier; // Likely empty string
+```
+
+<Note>
+**Supported number types:**
+- Mobile numbers: Usually have carrier data
+- Pager numbers: May have carrier data
+- Fixed-line-or-mobile: May have carrier data
+- Other types (landline, toll-free, etc.): Typically no carrier data
+</Note>
+
+## Mobile Number Portability
+
+<Warning>
+Carrier information may be inaccurate in countries with mobile number portability (MNP), where users can keep their number when switching carriers.
+</Warning>
+
+```php
+// Example: User may have moved from original carrier
+$phoneUtil = PhoneNumberUtil::getInstance();
+$carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+
+$number = $phoneUtil->parse('+1 415 555 0123', 'US');
+$carrier = $carrierMapper->getNameForNumber($number, 'en');
+
+// This returns the original carrier based on number prefix
+// May not reflect current carrier if number was ported
+echo "Original carrier: $carrier";
+```
+
+<Tip>
+Don't rely on carrier information for routing decisions in countries with active MNP programs. The data represents the original allocation, not necessarily the current carrier.
+</Tip>
+
+## Practical Examples
+
+<Tabs>
+  <Tab title="Contact Enhancement">
+    ```php
+    function enrichContactInfo(
+        string $name,
+        string $phoneNumber,
+        string $locale = 'en'
+    ): array {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $carrierMapper = \libphonenumber\PhoneNumberToCarrierMapper::getInstance();
+        
+        try {
+            $number = $phoneUtil->parse($phoneNumber, null);
+            
+            $type = $phoneUtil->getNumberType($number);
+            $carrier = null;
+            
+            // Only get carrier for mobile numbers
+            if ($type === \libphonenumber\PhoneNumberType::MOBILE) {
+                $carrier = $carrierMapper->getNameForNumber(
+                    $number,
+                    $locale
+                );
+            }
+            
+            return [
+                'name' => $name,
+                'phone' => $phoneUtil->format(
+                    $number,
+                    \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+                ),
+                'type' => $this->getTypeLabel($type),
+                'carrier' => $carrier ?: null,
+                'region' => $phoneUtil->getRegionCodeForNumber($number)
+            ];
+            
+        } catch (\libphonenumber\NumberParseException $e) {
+            return [
+                'name' => $name,
+                'phone' => $phoneNumber,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    private function getTypeLabel(int $type): string
+    {
+        return match($type) {
+            \libphonenumber\PhoneNumberType::MOBILE => 'Mobile',
+            \libphonenumber\PhoneNumberType::FIXED_LINE => 'Landline',
+            \libphonenumber\PhoneNumberType::FIXED_LINE_OR_MOBILE => 'Phone',
+            default => 'Other'
+        };
+    }
+    
+    // Usage
+    $contact = enrichContactInfo('Jane Doe', '+41 79 876 54 32', 'en');
+    /*
+    Result:
+    [
+        'name' => 'Jane Doe',
+        'phone' => '+41 79 876 54 32',
+        'type' => 'Mobile',
+        'carrier' => 'Swisscom',
+        'region' => 'CH'
+    ]
+    */
+    ```
+  </Tab>
+  
+  <Tab title="SMS Routing">
+    ```php
+    class SmsRouter
+    {
+        private PhoneNumberUtil $phoneUtil;
+        private PhoneNumberToCarrierMapper $carrierMapper;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+            $this->carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+        }
+        
+        public function getRoutingInfo(string $phoneNumber): array
+        {
+            try {
+                $number = $this->phoneUtil->parse($phoneNumber, null);
+                
+                if (!$this->phoneUtil->isValidNumber($number)) {
+                    throw new \InvalidArgumentException('Invalid number');
+                }
+                
+                $type = $this->phoneUtil->getNumberType($number);
+                
+                // Check if it's a mobile number
+                $isMobile = in_array($type, [
+                    \libphonenumber\PhoneNumberType::MOBILE,
+                    \libphonenumber\PhoneNumberType::FIXED_LINE_OR_MOBILE
+                ], true);
+                
+                $carrier = null;
+                if ($isMobile) {
+                    $carrier = $this->carrierMapper->getNameForValidNumber(
+                        $number,
+                        'en'
+                    );
+                }
+                
+                return [
+                    'e164' => $this->phoneUtil->format(
+                        $number,
+                        \libphonenumber\PhoneNumberFormat::E164
+                    ),
+                    'region' => $this->phoneUtil->getRegionCodeForNumber($number),
+                    'canReceiveSms' => $isMobile,
+                    'carrier' => $carrier,
+                    'carrierAvailable' => !empty($carrier)
+                ];
+                
+            } catch (\libphonenumber\NumberParseException $e) {
+                throw new \InvalidArgumentException(
+                    'Cannot parse phone number: ' . $e->getMessage()
+                );
+            }
+        }
+    }
+    
+    // Usage
+    $router = new SmsRouter();
+    $info = $router->getRoutingInfo('+41 79 876 54 32');
+    
+    if ($info['canReceiveSms']) {
+        echo "Send SMS to {$info['e164']}";
+        if ($info['carrierAvailable']) {
+            echo " via {$info['carrier']}";
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Analytics">
+    ```php
+    class PhoneNumberAnalytics
+    {
+        private PhoneNumberUtil $phoneUtil;
+        private PhoneNumberToCarrierMapper $carrierMapper;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+            $this->carrierMapper = PhoneNumberToCarrierMapper::getInstance();
+        }
+        
+        public function analyzeNumbers(array $phoneNumbers): array
+        {
+            $stats = [
+                'total' => count($phoneNumbers),
+                'valid' => 0,
+                'mobile' => 0,
+                'carriers' => [],
+                'regions' => []
+            ];
+            
+            foreach ($phoneNumbers as $phoneNumber) {
+                try {
+                    $number = $this->phoneUtil->parse($phoneNumber, null);
+                    
+                    if (!$this->phoneUtil->isValidNumber($number)) {
+                        continue;
+                    }
+                    
+                    $stats['valid']++;
+                    
+                    // Count by region
+                    $region = $this->phoneUtil->getRegionCodeForNumber($number);
+                    $stats['regions'][$region] = 
+                        ($stats['regions'][$region] ?? 0) + 1;
+                    
+                    // Count mobile numbers and carriers
+                    $type = $this->phoneUtil->getNumberType($number);
+                    if ($type === \libphonenumber\PhoneNumberType::MOBILE) {
+                        $stats['mobile']++;
+                        
+                        $carrier = $this->carrierMapper->getNameForNumber(
+                            $number,
+                            'en'
+                        );
+                        
+                        if (!empty($carrier)) {
+                            $stats['carriers'][$carrier] = 
+                                ($stats['carriers'][$carrier] ?? 0) + 1;
+                        }
+                    }
+                    
+                } catch (\libphonenumber\NumberParseException $e) {
+                    // Skip invalid numbers
+                    continue;
+                }
+            }
+            
+            return $stats;
+        }
+    }
+    
+    // Usage
+    $analytics = new PhoneNumberAnalytics();
+    $numbers = [
+        '+41 79 876 54 32',
+        '+1 415 555 0123',
+        '+44 7400 123456'
+    ];
+    
+    $stats = $analytics->analyzeNumbers($numbers);
+    /*
+    Result:
+    [
+        'total' => 3,
+        'valid' => 3,
+        'mobile' => 3,
+        'carriers' => [
+            'Swisscom' => 1,
+            // Other carriers...
+        ],
+        'regions' => [
+            'CH' => 1,
+            'US' => 1,
+            'GB' => 1
+        ]
+    ]
+    */
+    ```
+  </Tab>
+</Tabs>
+
+## Data Availability
+
+Carrier data availability varies by country:
+
+<AccordionGroup>
+  <Accordion title="Countries with Good Coverage">
+    - Switzerland (CH)
+    - United States (US)
+    - United Kingdom (GB)
+    - Germany (DE)
+    - Many other major markets
+  </Accordion>
+  
+  <Accordion title="Limited or No Data">
+    - Some smaller countries
+    - Countries where carrier data isn't publicly available
+    - Recently assigned number ranges
+  </Accordion>
+  
+  <Accordion title="Checking Data Availability">
+    ```php
+    $carrier = $carrierMapper->getNameForNumber($number, 'en');
+    
+    if (empty($carrier)) {
+        // No carrier data available
+        // Could be:
+        // - Not a mobile number
+        // - No data for this country
+        // - Recently assigned range
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Check Number Type First" icon="mobile">
+    Verify it's a mobile number before attempting carrier lookup
+  </Card>
+  
+  <Card title="Handle Empty Results" icon="circle-exclamation">
+    Always check for empty strings - not all mobile numbers have carrier data
+  </Card>
+  
+  <Card title="Beware of Number Portability" icon="arrows-rotate">
+    Don't use for routing in MNP countries - data may be outdated
+  </Card>
+  
+  <Card title="Use for Display Only" icon="eye">
+    Best used for showing information to users, not for system logic
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Warning>
+**What carrier mapping cannot do:**
+- Guarantee accuracy in countries with mobile number portability
+- Provide real-time carrier information
+- Work reliably with non-mobile numbers
+- Detect MVNOs (Mobile Virtual Network Operators) in all cases
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Geocoding" icon="location-dot" href="/guides/geocoding">
+    Get geographic location information
+  </Card>
+  
+  <Card title="Timezone Mapping" icon="clock" href="/guides/timezone-mapping">
+    Determine timezone information from numbers
+  </Card>
+  
+  <Card title="Carrier Mapper API" icon="code" href="/api/phone-number-to-carrier-mapper">
+    Complete API reference for carrier mapping
+  </Card>
+  
+  <Card title="Number Types" icon="list" href="/api/phone-number-type">
+    Understanding phone number types
+  </Card>
+</CardGroup>

@@ -1,0 +1,251 @@
+---
+title: Parsing Phone Numbers
+description: Learn how to parse phone numbers from various formats into PhoneNumber objects
+---
+
+# Parsing Phone Numbers
+
+Parsing is the process of converting a phone number string into a structured `PhoneNumber` object. This is the foundation of all phone number operations in libphonenumber.
+
+## Basic Parsing
+
+The `parse()` method converts a string into a `PhoneNumber` object:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\NumberParseException;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+try {
+    // Parse with region code
+    $number = $phoneUtil->parse('0117 496 0123', 'GB');
+    
+    // Parse international format (region optional)
+    $number = $phoneUtil->parse('+44 117 496 0123', null);
+    
+    // Parse with IDD prefix
+    $number = $phoneUtil->parse('00 44 117 496 0123', 'FR');
+    
+} catch (NumberParseException $e) {
+    echo "Error: " . $e->getMessage();
+}
+```
+
+## Understanding Region Codes
+
+<Note>
+Region codes are CLDR two-letter codes (e.g., `GB`, `US`, `FR`). They help the parser understand which country's numbering plan to use.
+</Note>
+
+<Steps>
+  <Step title="International Format">
+    When the number starts with `+`, the region code is optional:
+    
+    ```php
+    // Region code can be null for international format
+    $number = $phoneUtil->parse('+41 44 668 18 00', null);
+    ```
+  </Step>
+  
+  <Step title="National Format">
+    For national format numbers, you must provide the region code:
+    
+    ```php
+    // Region code required for national format
+    $number = $phoneUtil->parse('044 668 18 00', 'CH');
+    ```
+  </Step>
+  
+  <Step title="International Dialing Prefix">
+    Numbers with IDD prefix (like `00` or `011`) need the calling region:
+    
+    ```php
+    // Parse from France (uses 00 as IDD)
+    $number = $phoneUtil->parse('00 44 117 496 0123', 'FR');
+    
+    // Parse from US (uses 011 as IDD)
+    $number = $phoneUtil->parse('011 44 117 496 0123', 'US');
+    ```
+  </Step>
+</Steps>
+
+## Parsing Options
+
+### Keep Raw Input
+
+Use `parseAndKeepRawInput()` to preserve the original string:
+
+```php
+$number = $phoneUtil->parseAndKeepRawInput('+44 117 496 0123', null);
+
+echo $number->getRawInput(); // "+44 117 496 0123"
+echo $number->getCountryCodeSource(); // FROM_NUMBER_WITH_PLUS_SIGN
+```
+
+<Tip>
+This is useful for maintaining formatting preferences or auditing purposes.
+</Tip>
+
+### Handling Extensions
+
+The library automatically detects and parses extensions:
+
+```php
+$number = $phoneUtil->parse('0117 496 0123 ext. 456', 'GB');
+echo $number->getExtension(); // "456"
+
+// Also recognizes: ext, extn, x, #
+$number = $phoneUtil->parse('+44 117 496 0123 x456', null);
+```
+
+## Common Parsing Patterns
+
+<Tabs>
+  <Tab title="User Input">
+    ```php
+    // Accept user input with region
+    function parseUserInput(string $input, string $userRegion): ?PhoneNumber
+    {
+        $phoneUtil = PhoneNumberUtil::getInstance();
+        
+        try {
+            return $phoneUtil->parse($input, $userRegion);
+        } catch (NumberParseException $e) {
+            // Log error or show message to user
+            return null;
+        }
+    }
+    
+    $number = parseUserInput($_POST['phone'], 'GB');
+    ```
+  </Tab>
+  
+  <Tab title="Database Storage">
+    ```php
+    // Parse before storing
+    function storePhoneNumber(string $input, string $region): void
+    {
+        $phoneUtil = PhoneNumberUtil::getInstance();
+        
+        try {
+            $number = $phoneUtil->parse($input, $region);
+            
+            // Validate before storing
+            if ($phoneUtil->isValidNumber($number)) {
+                // Store in E164 format
+                $e164 = $phoneUtil->format(
+                    $number,
+                    \libphonenumber\PhoneNumberFormat::E164
+                );
+                
+                // Save $e164 to database
+            }
+        } catch (NumberParseException $e) {
+            throw new InvalidArgumentException('Invalid phone number');
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="API Integration">
+    ```php
+    // Parse with default region from API context
+    class PhoneNumberParser
+    {
+        private PhoneNumberUtil $phoneUtil;
+        private string $defaultRegion;
+        
+        public function __construct(string $defaultRegion = 'US')
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+            $this->defaultRegion = $defaultRegion;
+        }
+        
+        public function parse(string $number, ?string $region = null): PhoneNumber
+        {
+            return $this->phoneUtil->parse(
+                $number,
+                $region ?? $this->defaultRegion
+            );
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+Always wrap parsing in try-catch blocks:
+
+```php
+try {
+    $number = $phoneUtil->parse($input, $region);
+    
+    // Additional validation recommended
+    if (!$phoneUtil->isValidNumber($number)) {
+        throw new InvalidArgumentException('Number is not valid');
+    }
+    
+} catch (NumberParseException $e) {
+    // Handle specific error types
+    switch ($e->getErrorType()) {
+        case NumberParseException::INVALID_COUNTRY_CODE:
+            echo "Invalid country code";
+            break;
+        case NumberParseException::NOT_A_NUMBER:
+            echo "Not a valid phone number";
+            break;
+        case NumberParseException::TOO_SHORT_NSN:
+            echo "Number is too short";
+            break;
+        case NumberParseException::TOO_LONG:
+            echo "Number is too long";
+            break;
+    }
+}
+```
+
+<Warning>
+Parsing success doesn't guarantee the number is valid! Always validate after parsing for production use.
+</Warning>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Validate" icon="check-circle">
+    Parse first, then validate with `isValidNumber()` before using the number
+  </Card>
+  
+  <Card title="Provide Region Context" icon="globe">
+    Always provide a region code for national format numbers
+  </Card>
+  
+  <Card title="Handle Errors Gracefully" icon="triangle-exclamation">
+    Use try-catch blocks and provide user-friendly error messages
+  </Card>
+  
+  <Card title="Store in E164 Format" icon="database">
+    After parsing and validating, store numbers in E164 format for consistency
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Validating Numbers" icon="badge-check" href="/guides/validating-numbers">
+    Learn how to validate parsed phone numbers
+  </Card>
+  
+  <Card title="Formatting Numbers" icon="paintbrush" href="/guides/formatting-numbers">
+    Format numbers for display in different contexts
+  </Card>
+  
+  <Card title="Error Handling" icon="bug" href="/guides/error-handling">
+    Comprehensive guide to handling parsing errors
+  </Card>
+  
+  <Card title="PhoneNumberUtil API" icon="code" href="/api/phone-number-util">
+    Complete API reference for parsing methods
+  </Card>
+</CardGroup>

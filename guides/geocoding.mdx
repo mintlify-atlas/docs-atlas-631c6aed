@@ -1,0 +1,449 @@
+---
+title: Geocoding Phone Numbers
+description: Learn how to get geographic location information from phone numbers
+---
+
+# Geocoding Phone Numbers
+
+The `PhoneNumberOfflineGeocoder` provides geographic location descriptions for phone numbers in multiple languages. This is useful for displaying where a phone number is from to your users.
+
+<Note>
+This feature works offline using precompiled metadata. It provides city or region-level information, not precise GPS coordinates.
+</Note>
+
+## Getting Started
+
+<Steps>
+  <Step title="Get Geocoder Instance">
+    ```php
+    use libphonenumber\geocoding\PhoneNumberOfflineGeocoder;
+    
+    $geocoder = PhoneNumberOfflineGeocoder::getInstance();
+    ```
+  </Step>
+  
+  <Step title="Parse a Phone Number">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $number = $phoneUtil->parse('044 668 18 00', 'CH');
+    ```
+  </Step>
+  
+  <Step title="Get Location Description">
+    ```php
+    // Get description in English
+    $location = $geocoder->getDescriptionForNumber($number, 'en_US');
+    echo $location; // "Zurich"
+    ```
+  </Step>
+</Steps>
+
+## Localized Descriptions
+
+One of the most powerful features is multi-language support:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+
+// Parse a Swiss number
+$swissNumber = $phoneUtil->parse('044 668 18 00', 'CH');
+
+// English
+echo $geocoder->getDescriptionForNumber($swissNumber, 'en_US');
+// Output: Zurich
+
+// German
+echo $geocoder->getDescriptionForNumber($swissNumber, 'de_DE');
+// Output: Zürich
+
+// Italian
+echo $geocoder->getDescriptionForNumber($swissNumber, 'it_IT');
+// Output: Zurigo
+
+// French
+echo $geocoder->getDescriptionForNumber($swissNumber, 'fr_FR');
+// Output: Zurich
+```
+
+<Tip>
+Use the user's preferred locale to automatically show location names in their language.
+</Tip>
+
+## Examples from Different Countries
+
+<Tabs>
+  <Tab title="United States">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+    
+    $usNumber = $phoneUtil->parse('+1 650 253 0000', 'US');
+    
+    // English
+    echo $geocoder->getDescriptionForNumber($usNumber, 'en_US');
+    // Output: Mountain View, CA
+    
+    // German
+    echo $geocoder->getDescriptionForNumber($usNumber, 'de_DE');
+    // Output: Mountain View, CA
+    
+    // Korean
+    echo $geocoder->getDescriptionForNumber($usNumber, 'ko_KR');
+    // Output: 미국 (United States)
+    ```
+    
+    <Note>
+    For some locales, if specific city data isn't available, it falls back to the country name.
+    </Note>
+  </Tab>
+  
+  <Tab title="United Kingdom">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+    
+    $gbNumber = $phoneUtil->parse('0161 496 0000', 'GB');
+    
+    // For UK users
+    echo $geocoder->getDescriptionForNumber($gbNumber, 'en_GB');
+    // Output: Manchester
+    
+    // For US users
+    echo $geocoder->getDescriptionForNumber($gbNumber, 'en_US');
+    // Output: United Kingdom
+    
+    // For Korean users
+    echo $geocoder->getDescriptionForNumber($gbNumber, 'ko_KR');
+    // Output: 영국 (United Kingdom)
+    ```
+  </Tab>
+  
+  <Tab title="Germany">
+    ```php
+    $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+    $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+    
+    $deNumber = $phoneUtil->parse('030 12345678', 'DE');
+    
+    // English
+    echo $geocoder->getDescriptionForNumber($deNumber, 'en_US');
+    // Output: Berlin
+    
+    // German
+    echo $geocoder->getDescriptionForNumber($deNumber, 'de_DE');
+    // Output: Berlin
+    ```
+  </Tab>
+</Tabs>
+
+## Working with Valid Numbers Only
+
+For performance and accuracy, use `getDescriptionForValidNumber()` when you've already validated the number:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+
+$number = $phoneUtil->parse('+41 44 668 18 00', null);
+
+// Validate first
+if ($phoneUtil->isValidNumber($number)) {
+    // More efficient if already validated
+    $location = $geocoder->getDescriptionForValidNumber($number, 'en_US');
+    echo $location; // Zurich
+}
+```
+
+<Tip>
+If you're processing large batches of numbers and have already validated them, use `getDescriptionForValidNumber()` for better performance.
+</Tip>
+
+## Handling Numbers Without Geo Data
+
+Not all numbers have geographic data available:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+
+// Mobile numbers may not have specific location data
+$mobileNumber = $phoneUtil->parse('+44 7400 123456', 'GB');
+$location = $geocoder->getDescriptionForNumber($mobileNumber, 'en_US');
+
+if (empty($location)) {
+    echo "No location data available";
+} else {
+    echo $location; // May show "United Kingdom" or be empty
+}
+
+// Toll-free numbers typically don't have location data
+$tollFree = $phoneUtil->parse('1-800-FLOWERS', 'US');
+$location = $geocoder->getDescriptionForNumber($tollFree, 'en_US');
+// May return empty string or country name
+```
+
+<Note>
+Mobile, toll-free, and some other number types may not have detailed geographic information.
+</Note>
+
+## Practical Examples
+
+<Tabs>
+  <Tab title="Contact List Display">
+    ```php
+    function formatContactWithLocation(
+        string $name,
+        string $phoneNumber,
+        string $userLocale
+    ): array {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+        
+        try {
+            $number = $phoneUtil->parse($phoneNumber, null);
+            
+            $formatted = $phoneUtil->format(
+                $number,
+                \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+            );
+            
+            $location = $geocoder->getDescriptionForNumber(
+                $number,
+                $userLocale
+            );
+            
+            return [
+                'name' => $name,
+                'phone' => $formatted,
+                'location' => $location ?: 'Unknown',
+                'type' => $phoneUtil->getNumberType($number)
+            ];
+            
+        } catch (\libphonenumber\NumberParseException $e) {
+            return [
+                'name' => $name,
+                'phone' => $phoneNumber,
+                'location' => 'Invalid',
+                'error' => true
+            ];
+        }
+    }
+    
+    // Usage
+    $contact = formatContactWithLocation(
+        'John Smith',
+        '+41 44 668 18 00',
+        'en_US'
+    );
+    
+    echo "{$contact['name']}: {$contact['phone']} ({$contact['location']})";
+    // Output: John Smith: +41 44 668 18 00 (Zurich)
+    ```
+  </Tab>
+  
+  <Tab title="Call Log Enhancement">
+    ```php
+    class CallLogFormatter
+    {
+        private PhoneNumberUtil $phoneUtil;
+        private PhoneNumberOfflineGeocoder $geocoder;
+        
+        public function __construct()
+        {
+            $this->phoneUtil = PhoneNumberUtil::getInstance();
+            $this->geocoder = PhoneNumberOfflineGeocoder::getInstance();
+        }
+        
+        public function formatCallLog(
+            array $callLog,
+            string $userRegion,
+            string $userLocale
+        ): array {
+            $formatted = [];
+            
+            foreach ($callLog as $call) {
+                try {
+                    $number = $this->phoneUtil->parse(
+                        $call['number'],
+                        $userRegion
+                    );
+                    
+                    $formatted[] = [
+                        'timestamp' => $call['timestamp'],
+                        'number' => $this->phoneUtil->format(
+                            $number,
+                            \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+                        ),
+                        'location' => $this->geocoder->getDescriptionForNumber(
+                            $number,
+                            $userLocale
+                        ),
+                        'type' => $this->getNumberTypeLabel(
+                            $this->phoneUtil->getNumberType($number)
+                        ),
+                        'duration' => $call['duration']
+                    ];
+                    
+                } catch (\libphonenumber\NumberParseException $e) {
+                    $formatted[] = [
+                        'timestamp' => $call['timestamp'],
+                        'number' => $call['number'],
+                        'location' => 'Unknown',
+                        'type' => 'Unknown',
+                        'duration' => $call['duration']
+                    ];
+                }
+            }
+            
+            return $formatted;
+        }
+        
+        private function getNumberTypeLabel(int $type): string
+        {
+            return match($type) {
+                \libphonenumber\PhoneNumberType::MOBILE => 'Mobile',
+                \libphonenumber\PhoneNumberType::FIXED_LINE => 'Landline',
+                \libphonenumber\PhoneNumberType::TOLL_FREE => 'Toll-Free',
+                default => 'Unknown'
+            };
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="API Response">
+    ```php
+    function enrichPhoneNumberData(
+        string $phoneNumber,
+        ?string $region = null
+    ): array {
+        $phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+        $geocoder = \libphonenumber\geocoding\PhoneNumberOfflineGeocoder::getInstance();
+        
+        try {
+            $number = $phoneUtil->parse($phoneNumber, $region);
+            
+            if (!$phoneUtil->isValidNumber($number)) {
+                return [
+                    'valid' => false,
+                    'error' => 'Invalid phone number'
+                ];
+            }
+            
+            $regionCode = $phoneUtil->getRegionCodeForNumber($number);
+            
+            return [
+                'valid' => true,
+                'e164' => $phoneUtil->format(
+                    $number,
+                    \libphonenumber\PhoneNumberFormat::E164
+                ),
+                'international' => $phoneUtil->format(
+                    $number,
+                    \libphonenumber\PhoneNumberFormat::INTERNATIONAL
+                ),
+                'region' => $regionCode,
+                'type' => $phoneUtil->getNumberType($number),
+                'location' => [
+                    'en' => $geocoder->getDescriptionForValidNumber(
+                        $number,
+                        'en_US'
+                    ),
+                    'local' => $geocoder->getDescriptionForValidNumber(
+                        $number,
+                        $regionCode === 'US' ? 'en_US' : $regionCode . '_' . $regionCode
+                    )
+                ]
+            ];
+            
+        } catch (\libphonenumber\NumberParseException $e) {
+            return [
+                'valid' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    // Usage
+    $data = enrichPhoneNumberData('+41 44 668 18 00');
+    /*
+    Result:
+    [
+        'valid' => true,
+        'e164' => '+41446681800',
+        'international' => '+41 44 668 18 00',
+        'region' => 'CH',
+        'type' => 0,
+        'location' => [
+            'en' => 'Zurich',
+            'local' => 'Zürich'
+        ]
+    ]
+    */
+    ```
+  </Tab>
+</Tabs>
+
+## Supported Locales
+
+The geocoder supports many locales. Common ones include:
+
+- **English**: `en_US`, `en_GB`
+- **European**: `de_DE`, `fr_FR`, `it_IT`, `es_ES`, `pt_PT`, `nl_NL`
+- **Asian**: `ja_JP`, `ko_KR`, `zh_CN`, `zh_TW`
+- **Others**: `ar`, `ru_RU`, `pl_PL`, `tr_TR`
+
+<Tip>
+If a specific locale isn't available, the geocoder will fall back to a more general description or English.
+</Tip>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use User's Locale" icon="globe">
+    Always pass the user's locale to show location names in their language
+  </Card>
+  
+  <Card title="Validate First" icon="check">
+    Validate numbers before geocoding for best results and performance
+  </Card>
+  
+  <Card title="Handle Empty Results" icon="circle-exclamation">
+    Not all numbers have location data - always check for empty strings
+  </Card>
+  
+  <Card title="Cache Results" icon="bolt">
+    Cache geocoding results for frequently accessed numbers to improve performance
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Warning>
+**What geocoding cannot do:**
+- Provide GPS coordinates or street addresses
+- Track the current location of a mobile phone
+- Work with invalid or unparseable numbers
+- Guarantee location data for all number types (mobile, toll-free, etc.)
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Carrier Mapping" icon="tower-cell" href="/guides/carrier-mapping">
+    Identify mobile carriers for phone numbers
+  </Card>
+  
+  <Card title="Timezone Mapping" icon="clock" href="/guides/timezone-mapping">
+    Get timezone information from phone numbers
+  </Card>
+  
+  <Card title="Geocoder API Reference" icon="code" href="/api/phone-number-offline-geocoder">
+    Complete API documentation for geocoding
+  </Card>
+  
+  <Card title="Number Types" icon="list" href="/api/phone-number-type">
+    Understanding different phone number types
+  </Card>
+</CardGroup>

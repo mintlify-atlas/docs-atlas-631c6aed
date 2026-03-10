@@ -1,0 +1,142 @@
+---
+title: Introduction
+description: PHP library for parsing, formatting, storing and validating international phone numbers
+---
+
+# Welcome to libphonenumber for PHP
+
+libphonenumber for PHP is a comprehensive library for parsing, formatting, storing and validating international phone numbers. This is a PHP port of Google's libphonenumber library, providing the same powerful phone number handling capabilities to the PHP ecosystem.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in minutes with our quick start guide
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/phone-number-util">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Guides" icon="book" href="/guides/parsing-numbers">
+    Learn best practices and common patterns
+  </Card>
+  <Card title="Framework Integration" icon="plug" href="/advanced/framework-integrations">
+    Integrate with Symfony, Laravel, and more
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Parse & Validate" icon="check-circle">
+    Parse phone numbers from any format and validate them against international standards
+  </Card>
+  <Card title="Format Numbers" icon="paintbrush">
+    Format numbers for E.164, international, national, and RFC3966 formats
+  </Card>
+  <Card title="Geocoding" icon="location-dot">
+    Get geographic location information for phone numbers
+  </Card>
+  <Card title="Carrier Mapping" icon="tower-cell">
+    Identify the carrier for mobile phone numbers
+  </Card>
+  <Card title="Timezone Mapping" icon="clock">
+    Determine timezone information from phone numbers
+  </Card>
+  <Card title="Emergency Numbers" icon="siren">
+    Handle short codes and emergency numbers correctly
+  </Card>
+  <Card title="As-You-Type" icon="keyboard">
+    Format phone numbers in real-time as users type
+  </Card>
+  <Card title="Find Numbers" icon="magnifying-glass">
+    Extract phone numbers from text content
+  </Card>
+</CardGroup>
+
+## Why Use This Library?
+
+<AccordionGroup>
+  <Accordion title="Based on Google's libphonenumber">
+    This library is a direct port of Google's authoritative libphonenumber library, ensuring accurate and up-to-date phone number handling for 250+ countries and territories worldwide.
+  </Accordion>
+  
+  <Accordion title="Production-Ready">
+    With over 5,000 stars on GitHub and millions of downloads via Composer, this library is battle-tested and trusted by developers worldwide.
+  </Accordion>
+  
+  <Accordion title="Actively Maintained">
+    Regular updates keep the library in sync with Google's libphonenumber releases, ensuring you always have the latest phone number metadata and validation rules.
+  </Accordion>
+  
+  <Accordion title="Well-Documented">
+    Comprehensive documentation, code examples, and community support make it easy to integrate phone number validation into your application.
+  </Accordion>
+</AccordionGroup>
+
+## Requirements
+
+- **PHP**: 8.1 to 8.5
+- **Extensions**: `mbstring` (PECL extension)
+- **Dependencies**: Automatically managed by Composer
+
+<Note>
+This library follows Google's versioning and may not strictly adhere to Semantic Versioning. Major version jumps may not contain backwards-incompatible changes. Always review release notes.
+</Note>
+
+## Quick Example
+
+Here's a simple example of parsing and validating a phone number:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+
+$phoneUtil = PhoneNumberUtil::getInstance();
+
+try {
+    // Parse a Swiss phone number
+    $numberProto = $phoneUtil->parse("044 668 18 00", "CH");
+    
+    // Validate the number
+    $isValid = $phoneUtil->isValidNumber($numberProto);
+    var_dump($isValid); // bool(true)
+    
+    // Format in different styles
+    echo $phoneUtil->format($numberProto, \libphonenumber\PhoneNumberFormat::E164);
+    // Output: +41446681800
+    
+    echo $phoneUtil->format($numberProto, \libphonenumber\PhoneNumberFormat::INTERNATIONAL);
+    // Output: +41 44 668 18 00
+    
+} catch (\libphonenumber\NumberParseException $e) {
+    echo "Error parsing number: " . $e->getMessage();
+}
+```
+
+## Next Steps
+
+<Steps>
+  <Step title="Install the library">
+    Follow the [installation guide](/installation) to add libphonenumber to your project
+  </Step>
+  
+  <Step title="Learn the basics">
+    Work through the [quickstart guide](/quickstart) to understand core concepts
+  </Step>
+  
+  <Step title="Explore features">
+    Check out our [guides](/guides/parsing-numbers) for common use cases and patterns
+  </Step>
+  
+  <Step title="Deep dive into the API">
+    Browse the [API reference](/api/phone-number-util) for detailed documentation
+  </Step>
+</Steps>
+
+## Community and Support
+
+- **GitHub Repository**: [giggsey/libphonenumber-for-php](https://github.com/giggsey/libphonenumber-for-php)
+- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/giggsey/libphonenumber-for-php/issues)
+- **Packagist**: [giggsey/libphonenumber-for-php](https://packagist.org/packages/giggsey/libphonenumber-for-php)
+- **Online Demo**: Try the [live demo](http://giggsey.com/libphonenumber/) to test phone number validation
+
+<Tip>
+If you only need core phone number utilities without geocoding or carrier mapping, consider using [giggsey/libphonenumber-for-php-lite](https://github.com/giggsey/libphonenumber-for-php-lite) for a smaller package size.
+</Tip>

@@ -1,0 +1,233 @@
+---
+title: 'PhoneNumberMatcher'
+description: 'Find and extract phone numbers from text'
+---
+
+## Overview
+
+The `PhoneNumberMatcher` class finds and extracts telephone numbers from unstructured text. It implements the `Iterator` interface, allowing you to iterate over all phone numbers found in the text.
+
+<Note>
+  Vanity numbers (phone numbers using alphabetic digits such as '1-800-SIX-FLAGS') are not currently supported.
+</Note>
+
+## Creating an Instance
+
+Instances are created using `PhoneNumberUtil::findNumbers()`:
+
+```php
+$phoneNumberUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$text = "Hi, can you ring me at 1430 on 0117 496 0123. Thanks!";
+
+$phoneNumberMatcher = $phoneNumberUtil->findNumbers($text, 'GB');
+```
+
+### Constructor Parameters
+
+<ParamField path="text" type="string" required>
+  The text to search for phone numbers
+</ParamField>
+
+<ParamField path="country" type="string|null" required>
+  The default country/region code to assume for phone numbers not written in international format. Use `null` or `"ZZ"` to only match numbers with a leading plus sign.
+</ParamField>
+
+<ParamField path="leniency" type="AbstractLeniency" default="Leniency::VALID()">
+  The leniency level to use when evaluating candidate phone numbers. See [Leniency Levels](#leniency-levels) below.
+</ParamField>
+
+<ParamField path="maxTries" type="int" default="65535">
+  The maximum number of invalid numbers to try before giving up. Must be >= 0. This helps avoid degenerate cases where text has many false positives.
+</ParamField>
+
+## Iteration Methods
+
+Since `PhoneNumberMatcher` implements `Iterator`, you can use it in a `foreach` loop:
+
+```php
+foreach ($phoneNumberMatcher as $phoneNumberMatch) {
+    var_dump($phoneNumberMatch->number());
+    var_dump($phoneNumberMatch->rawString());
+    var_dump($phoneNumberMatch->start());
+    var_dump($phoneNumberMatch->end());
+}
+```
+
+### hasNext()
+
+Check if there are more phone numbers to find. This method is part of the standard iterator interface accessed via `valid()`:
+
+```php
+while ($phoneNumberMatcher->valid()) {
+    $match = $phoneNumberMatcher->current();
+    // Process match
+    $phoneNumberMatcher->next();
+}
+```
+
+<ResponseField name="return" type="bool">
+  Returns `true` if there are more matches available
+</ResponseField>
+
+### next()
+
+Advance to the next phone number match in the text:
+
+```php
+$phoneNumberMatcher->next();
+```
+
+This method moves the internal pointer to the next match and updates the state.
+
+### current()
+
+Get the current phone number match:
+
+```php
+$match = $phoneNumberMatcher->current();
+```
+
+<ResponseField name="return" type="PhoneNumberMatch|null">
+  Returns the current `PhoneNumberMatch` object, or `null` if no match is available
+</ResponseField>
+
+## Leniency Levels
+
+The leniency parameter controls how strict the matching should be. Four levels are available:
+
+### POSSIBLE
+
+```php
+use libphonenumber\Leniency;
+
+$matcher = $phoneUtil->findNumbers($text, 'US', Leniency::POSSIBLE());
+```
+
+The most permissive level. Matches any sequence of digits that could possibly be a phone number, with minimal validation. This may produce false positives.
+
+**Use when:** You want maximum recall and are willing to manually filter results.
+
+### VALID
+
+```php
+$matcher = $phoneUtil->findNumbers($text, 'US', Leniency::VALID());
+```
+
+Matches phone numbers that pass validation checks. This is the **default and recommended** level for most use cases.
+
+**Use when:** You want a good balance between precision and recall.
+
+### STRICT_GROUPING
+
+```php
+$matcher = $phoneUtil->findNumbers($text, 'US', Leniency::STRICT_GROUPING());
+```
+
+Matches valid phone numbers where the grouping of digits matches a known formatting pattern for the region.
+
+**Use when:** You want to avoid matching numbers that are formatted incorrectly for the region.
+
+### EXACT_GROUPING
+
+```php
+$matcher = $phoneUtil->findNumbers($text, 'US', Leniency::EXACT_GROUPING());
+```
+
+The strictest level. Matches only phone numbers where the digit grouping exactly matches a standard formatting pattern, including all separators.
+
+**Use when:** You need the highest precision and only want perfectly formatted numbers.
+
+## Examples
+
+### Basic Phone Number Extraction
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+
+$text = "Call me at +1 650-253-0000 or 0117 496 0123";
+$matches = $phoneUtil->findNumbers($text, 'GB');
+
+foreach ($matches as $match) {
+    echo "Found: " . $match->rawString() . "\n";
+    echo "Position: " . $match->start() . "-" . $match->end() . "\n";
+    
+    $number = $match->number();
+    echo "Country: " . $number->getCountryCode() . "\n";
+    echo "National: " . $number->getNationalNumber() . "\n";
+}
+```
+
+### Using Different Leniency Levels
+
+<CodeGroup>
+```php Possible (Permissive)
+use libphonenumber\Leniency;
+
+// Find any possible phone numbers
+$matcher = $phoneUtil->findNumbers(
+    "Numbers: 555-1234, 123-4567",
+    'US',
+    Leniency::POSSIBLE()
+);
+
+// May find: 555-1234, 123-4567 (even if invalid)
+```
+
+```php Valid (Default)
+// Find valid phone numbers only
+$matcher = $phoneUtil->findNumbers(
+    "Numbers: 555-1234, 123-4567",
+    'US',
+    Leniency::VALID()
+);
+
+// May find: 555-1234 (if valid), skip 123-4567 (if invalid)
+```
+
+```php Strict Grouping
+// Find numbers with correct grouping
+$matcher = $phoneUtil->findNumbers(
+    "US: (650) 253-0000 and 650253-0000",
+    'US',
+    Leniency::STRICT_GROUPING()
+);
+
+// Finds: (650) 253-0000, skips: 650253-0000 (wrong grouping)
+```
+
+```php Exact Grouping
+// Find perfectly formatted numbers
+$matcher = $phoneUtil->findNumbers(
+    "US: (650) 253-0000 and (650)253-0000",
+    'US',
+    Leniency::EXACT_GROUPING()
+);
+
+// Finds: (650) 253-0000, skips: (650)253-0000 (missing space)
+```
+</CodeGroup>
+
+### Limiting Search Attempts
+
+```php
+// Limit attempts to avoid processing text with many false positives
+$text = "Random digits everywhere: 123 456 789 012 345 678 901 234";
+
+$matcher = $phoneUtil->findNumbers(
+    $text,
+    'US',
+    Leniency::VALID(),
+    10  // Stop after 10 failed attempts
+);
+
+foreach ($matcher as $match) {
+    echo "Found: " . $match->rawString() . "\n";
+}
+```
+
+## See Also
+
+- [PhoneNumberMatch](/api/phone-number-match) - Individual match results
+- [PhoneNumberUtil](/api/phone-number-util) - Create matcher instances with `findNumbers()`
+- [Leniency Levels](https://github.com/giggsey/libphonenumber-for-php/blob/main/src/Leniency.php) - Source code for all leniency implementations

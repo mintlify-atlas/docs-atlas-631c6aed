@@ -1,0 +1,250 @@
+---
+title: "Phone Numbers"
+description: "Understanding the PhoneNumber object and phone number types"
+---
+
+## The PhoneNumber Object
+
+The `PhoneNumber` class is the core data structure in libphonenumber for PHP. It represents a parsed phone number with all its components and metadata.
+
+<Warning>
+  Do not create `PhoneNumber` objects directly. Always use `PhoneNumberUtil::parse()` to parse a number and return a `PhoneNumber` object.
+</Warning>
+
+### Object Structure
+
+A `PhoneNumber` object contains the following key properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `countryCode` | `int` | The country calling code (e.g., 1 for US/Canada, 44 for UK) |
+| `nationalNumber` | `string` | The national significant number without formatting |
+| `extension` | `string` | Optional phone extension (up to 40 digits) |
+| `italianLeadingZero` | `bool` | Whether the number has a leading zero (for certain countries) |
+| `numberOfLeadingZeros` | `int` | Count of leading zeros (default: 1) |
+| `rawInput` | `string` | The original input string before canonicalization |
+| `countryCodeSource` | `CountryCodeSource` | How the country code was derived |
+| `preferredDomesticCarrierCode` | `string` | Carrier selection code for domestic calls |
+
+### Example PhoneNumber Object
+
+When you parse a UK phone number:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('0117 496 0123', 'GB');
+```
+
+The resulting object contains:
+
+```php
+object(libphonenumber\PhoneNumber) {
+  ["countryCode":protected] => int(44)
+  ["nationalNumber":protected] => string(10) "1174960123"
+  ["extension":protected] => NULL
+  ["italianLeadingZero":protected] => NULL
+  ["numberOfLeadingZeros":protected] => int(1)
+  // ... other properties
+}
+```
+
+### Accessing Phone Number Properties
+
+The `PhoneNumber` class provides getter methods for all properties:
+
+```php
+$countryCode = $number->getCountryCode(); // 44
+$nationalNumber = $number->getNationalNumber(); // "1174960123"
+$extension = $number->getExtension(); // null or extension string
+```
+
+### Phone Number Extensions
+
+Phone extensions are stored as strings to accommodate leading zeros:
+
+```php
+$number = $phoneUtil->parse('+1-650-253-0000 ext. 123', 'US');
+if ($number->hasExtension()) {
+    echo $number->getExtension(); // "123"
+}
+```
+
+<Note>
+  Extensions can be up to 40 digits long, though most are much shorter in practice.
+</Note>
+
+### Italian Leading Zeros
+
+Some countries (notably Italy) have numbers where leading zeros are significant when dialing internationally:
+
+```php
+$italianNumber = $phoneUtil->parse('+39 02 1234567', null);
+if ($italianNumber->isItalianLeadingZero()) {
+    echo "This number has a leading zero";
+    echo $italianNumber->getNumberOfLeadingZeros(); // 1
+}
+```
+
+## Phone Number Types
+
+The library categorizes phone numbers into different types defined by the `PhoneNumberType` enum:
+
+### Available Types
+
+<Tabs>
+  <Tab title="Common Types">
+    | Type | Value | Description |
+    |------|-------|-------------|
+    | `FIXED_LINE` | 0 | Traditional landline numbers |
+    | `MOBILE` | 1 | Mobile/cellular numbers |
+    | `FIXED_LINE_OR_MOBILE` | 2 | Cannot distinguish between fixed-line and mobile |
+    | `TOLL_FREE` | 3 | Freephone lines (e.g., 1-800 numbers) |
+  </Tab>
+  <Tab title="Special Types">
+    | Type | Value | Description |
+    |------|-------|-------------|
+    | `PREMIUM_RATE` | 4 | Premium-rate services |
+    | `SHARED_COST` | 5 | Cost shared between caller and recipient |
+    | `VOIP` | 6 | Voice over IP numbers (including TSoIP) |
+    | `PERSONAL_NUMBER` | 7 | Personal numbers routed to mobile or fixed-line |
+  </Tab>
+  <Tab title="Other Types">
+    | Type | Value | Description |
+    |------|-------|-------------|
+    | `PAGER` | 8 | Pager numbers |
+    | `UAN` | 9 | Universal Access Numbers / Company Numbers |
+    | `VOICEMAIL` | 28 | Voicemail access numbers |
+    | `UNKNOWN` | 10 | Does not fit any known pattern |
+  </Tab>
+</Tabs>
+
+### Determining Number Type
+
+Use `getNumberType()` to identify a phone number's type:
+
+```php
+$phoneUtil = \libphonenumber\PhoneNumberUtil::getInstance();
+$number = $phoneUtil->parse('07400 123456', 'GB');
+
+$type = $phoneUtil->getNumberType($number);
+
+if ($type === \libphonenumber\PhoneNumberType::MOBILE) {
+    echo "This is a mobile number";
+} elseif ($type === \libphonenumber\PhoneNumberType::FIXED_LINE) {
+    echo "This is a landline";
+}
+```
+
+### FIXED_LINE_OR_MOBILE Type
+
+In some regions (notably the USA and Canada), it's impossible to distinguish between fixed-line and mobile numbers by examining the number itself:
+
+```php
+$usNumber = $phoneUtil->parse('(650) 253-0000', 'US');
+$type = $phoneUtil->getNumberType($usNumber);
+
+// Returns PhoneNumberType::FIXED_LINE_OR_MOBILE
+```
+
+<Info>
+  The `FIXED_LINE_OR_MOBILE` type is never returned by `getSupportedTypesForRegion()` as it's a convenience type representing ambiguity.
+</Info>
+
+### Checking Supported Types by Region
+
+Find out which phone number types are available in a specific region:
+
+```php
+$types = $phoneUtil->getSupportedTypesForRegion('GB');
+// Returns array containing FIXED_LINE, MOBILE, TOLL_FREE, etc.
+
+foreach ($types as $type) {
+    echo $type->name . "\n";
+}
+```
+
+### Geographical vs Non-Geographical Numbers
+
+Some phone numbers have a geographical association:
+
+```php
+$number = $phoneUtil->parse('+44 117 496 0123', null);
+
+if ($phoneUtil->isNumberGeographical($number)) {
+    echo "This number is associated with a geographical region";
+}
+```
+
+<Accordion title="Which number types are geographical?">
+  - `FIXED_LINE` - Always geographical
+  - `MOBILE` - Geographical in some countries (e.g., Argentina, Brazil, China, Mexico)
+  - `FIXED_LINE_OR_MOBILE` - Considered possibly geographical
+  - All other types are non-geographical
+</Accordion>
+
+## Working with Different Types
+
+### Getting Example Numbers
+
+Retrieve example numbers for testing:
+
+```php
+// Get any example number for a region
+$exampleNumber = $phoneUtil->getExampleNumber('GB');
+
+// Get an example of a specific type
+$mobileExample = $phoneUtil->getExampleNumberForType(
+    'GB',
+    \libphonenumber\PhoneNumberType::MOBILE
+);
+
+// Get an invalid example (useful for testing)
+$invalidExample = $phoneUtil->getInvalidExampleNumber('GB');
+```
+
+### Type-Specific Validation
+
+Check if a number is possible for a specific type:
+
+```php
+$result = $phoneUtil->isPossibleNumberForTypeWithReason(
+    $number,
+    \libphonenumber\PhoneNumberType::MOBILE
+);
+
+if ($result === \libphonenumber\ValidationResult::IS_POSSIBLE) {
+    echo "Number could be a mobile number";
+}
+```
+
+## Best Practices
+
+<Warning>
+  Never manually construct `PhoneNumber` objects. Always use `PhoneNumberUtil::parse()` to ensure proper validation and parsing.
+</Warning>
+
+<Note>
+  The phone number type is determined by pattern matching against metadata. It does not verify if the number is currently in use or assigned to a specific carrier.
+</Note>
+
+### Comparing Phone Numbers
+
+Use the `equals()` method to compare two `PhoneNumber` objects:
+
+```php
+$number1 = $phoneUtil->parse('+44 117 496 0123', null);
+$number2 = $phoneUtil->parse('0117 496 0123', 'GB');
+
+if ($number1->equals($number2)) {
+    echo "These numbers are identical";
+}
+```
+
+### String Representation
+
+Convert a `PhoneNumber` to a readable string for debugging:
+
+```php
+echo $number->__toString();
+// Output: Country Code: 44 National Number: 1174960123
+```
